@@ -4,10 +4,14 @@ import threading
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 IP = "192.168.0.42" # socket.gethostbyname(socket.gethostname())
-PORT = 5050
+PORT = 5055
 ADDR = (IP, PORT)
 
 server.bind(ADDR)
+
+# Command notation is: #IC{command}
+# Kinda redundant 
+INTERNAL_COMMANDS = ["exit"]
 
 
 # -------- Functions --------
@@ -19,8 +23,17 @@ def handle_client(conn, addr):
         try:
             data = conn.recv(1024).decode("utf-8")
             if data: 
+                # Determine if is command
+                if "#IC" in data:
+                    cmd = data[data.find("{")+1 : data.find("}")]                    
+                    if cmd == "exit":
+                        conn.close()
+                        print(f"Closing connection with {addr}")
+                        break
+
+                # Else is casual data, currently just prints to cmdline
                 print(data)
-       
+
         except socket.error as e:
             print(e)
 
