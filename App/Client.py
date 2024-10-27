@@ -1,7 +1,7 @@
 import socket
 import threading
 
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 IP = "192.168.0.42" #socket.gethostbyname(socket.gethostname())
 PORT = 5055
@@ -33,6 +33,7 @@ def server_handle():
             client.send(r"#IC{exit}".encode("utf-8"))
             break
 
+
         # currently not in use but may need if becomes non-daemon for any reason/test
         if kill_all_non_daemon:
             print("Ending Thread")
@@ -53,7 +54,7 @@ def establish_p2p_private_connection():
 # Begin 
 if __name__ == "__main__":
     # Probably run some tests? 
-    print("This only doesn't run directly yet")
+    print("This doesn't run directly yet")
     
 
    

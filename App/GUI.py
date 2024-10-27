@@ -6,6 +6,13 @@ from Client import *
 import sys
 import time
 
+# NOTE 24/10/24 00:23
+# Main thread is free. 
+# populates buffer which is fed into stream inside Client.py.
+# exit handling on server side and threads is done 
+# Data sending thread is Daemon meaning it should close when program is finished - issue was having is non-daemon threads cant perform interupts
+
+
 
 print("gui stuff")
 while True:
