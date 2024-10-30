@@ -5,9 +5,10 @@ import globals
 import sys
 
 IP = "192.168.0.42"
+LAPTOP_IP = "192.168.0.18"
 PORT = 5005
 
-SERVER_ADDR = ("192.168.0.42", 5005)
+SERVER_ADDR = (LAPTOP_IP, 5005)
 
 
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -16,8 +17,11 @@ connected = True
 def client_handle():
     print(f"Sending data audio to: {SERVER_ADDR}")
     while connected:    
-        if globals.frames_buffer_in:  
-            client.sendto(globals.frames_buffer_in, SERVER_ADDR)
+        if globals.frames_buffer_in:
+            client.sendto(globals.frames_buffer_in.pop(0), SERVER_ADDR)
+            
+        else:
+            print("Frame buffer is empty")
             # Used to determine size of bytes being sent:
             # size = sys.getsizeof(globals.frames_buffer)
             # client.sendto(str(size).encode("utf-8"), SERVER_ADDR)

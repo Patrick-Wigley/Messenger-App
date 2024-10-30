@@ -4,17 +4,18 @@ import numpy as np
 import threading
 import globals
 
+import socket
+
+
 #import matplotlib.pyplot as plt 
 
 FRAMES_PER_BUFFER = 1024
 FORMAT = pya.paInt16
-CHANNELS = 1
+CHANNELS = 2
 FRAMERATE = 44100
 p = pya.PyAudio()
 
 def get_recording(duration=5):
-       
-   
     stream = p.open(format=FORMAT, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER,
                     input=True)
 
@@ -31,6 +32,21 @@ def get_recording(duration=5):
     p.terminate()    
 
     return (frames, stream, p)
+
+def play_recorded(frames):
+    stream = p.open(format=pya.paFloat32, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER, 
+                    input=False, output=True)
+
+    while frames:
+      try:
+        if frames:
+          stream.write(frames[0])
+          list(frames).remove(frames[0])
+        else:
+           break
+      except IndexError as e:
+        print(f"[play_recorded()]: Broke erroronously - {e}")
+        break 
 
 
 def save_recording_into_file(recording_data):
@@ -60,7 +76,8 @@ def start_recording_realtime():
     print("Microphone is being captured")
     recording = True
     while recording:
-      globals.frames_buffer_in = stream.read(FRAMES_PER_BUFFER)
+      globals.frames_buffer_in.append(stream.read(FRAMES_PER_BUFFER))
+
     print("Microphone capture has finished")
 
 def stop_recordings():
@@ -80,8 +97,32 @@ def play_recording_realtime():
     playing = True
     while playing:
        if globals.frames_buffer_out:
-        stream.write(globals.frames_buffer_out)
+          stream.write(globals.frames_buffer_out)
 
+
+def recv_and_play_recording_realtime():
+    """ This function combines 'play_recording_realtime' & networking side of analog comm """
+    stream = p.open(format=pya.paFloat32, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER, 
+                    input=False, output=True)
+    
+    IP = "192.168.0.42"
+    PORT = 5005
+    ADDR = (IP, PORT)
+
+
+    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server.bind(ADDR)
+
+    print(f"[UDP SERVER] Listening at: {ADDR}")
+    
+    playing = True
+    while playing:
+      stream.write(server.recvfrom(2081))
+      
 
 if __name__ == "__main__":
-    save_recording_into_file(get_recording(5))
+    # test
+    pass
+    
+
+    #save_recording_into_file(get_recording(5))
