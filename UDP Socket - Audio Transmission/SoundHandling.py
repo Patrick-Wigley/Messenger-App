@@ -2,8 +2,8 @@ import pyaudio as pya
 import wave
 import numpy as np
 import threading
-import globals
-
+import GlobalItems
+import time
 import socket
 
 
@@ -76,7 +76,7 @@ def start_recording_realtime():
     print("Microphone is being captured")
     recording = True
     while recording:
-      globals.frames_buffer_in.append(stream.read(FRAMES_PER_BUFFER))
+      GlobalItems.frames_buffer_in.put(stream.read(FRAMES_PER_BUFFER))
 
     print("Microphone capture has finished")
 
@@ -96,8 +96,9 @@ def play_recording_realtime():
 
     playing = True
     while playing:
-       if globals.frames_buffer_out:
-          stream.write(globals.frames_buffer_out)
+        if not GlobalItems.frames_buffer_in.empty():
+          stream.write(GlobalItems.frames_buffer_in.get())
+          time.sleep(1)
 
 
 def recv_and_play_recording_realtime():

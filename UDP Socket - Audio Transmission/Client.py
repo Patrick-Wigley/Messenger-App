@@ -1,14 +1,13 @@
 import socket
 import threading
 from SoundHandling import start_recording_realtime, stop_recordings
-import globals
+import GlobalItems
 import sys
 
-IP = "192.168.0.42"
-LAPTOP_IP = "192.168.0.18"
+IP = input("Devices assigned IP on subnet ->:")
 PORT = 5005
 
-SERVER_ADDR = (LAPTOP_IP, 5005)
+SERVER_ADDR = (IP, 5005)
 
 
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -17,16 +16,22 @@ connected = True
 def client_handle():
     print(f"Sending data audio to: {SERVER_ADDR}")
     while connected:    
-        if globals.frames_buffer_in:
-            client.sendto(globals.frames_buffer_in.pop(0), SERVER_ADDR)
+        if not GlobalItems.frames_buffer_in.empty():
+            data = GlobalItems.frames_buffer_in.get()
+            client.sendto(data, SERVER_ADDR)
             
         else:
-            print("Frame buffer is empty")
+            pass
+            # print("Frame buffer is empty")
             # Used to determine size of bytes being sent:
-            # size = sys.getsizeof(globals.frames_buffer)
+            # size = sys.getsizeof(GlobalItems.frames_buffer)
             # client.sendto(str(size).encode("utf-8"), SERVER_ADDR)
-
             #print(frames_buffer[len(frames_buffer)-1])
+
+        if GlobalItems.frames_buffer_in.full():
+            print("INPUT BUFFER IS FULL")
+
+
     print(f"Ending connection with {SERVER_ADDR}")
 
 if __name__ == "__main__":
