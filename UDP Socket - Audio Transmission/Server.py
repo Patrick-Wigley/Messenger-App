@@ -5,7 +5,7 @@ import GlobalItems
 
 
 
-IP = input("Devices assigned IP on subnet ->: ")
+IP = input("Servers assigned IP on subnet ->: ")
 PORT = 5005
 ADDR = (IP, PORT)
 

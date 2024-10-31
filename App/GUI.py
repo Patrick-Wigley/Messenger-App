@@ -17,9 +17,14 @@ import time
 print("gui stuff")
 while True:
     # main thread does nothing yet. just idles, to keep server running till manual closure
-    msg = input("From Main Thread! ->: ")
-    message_buffer.append(msg)
-    
-    if msg == "exit":
-        print("Exiting MAIN THREAD!")
+    try:
+        msg = input("From Main Thread! ->: ")
+        message_buffer.append(msg)
+        
+        
+        if msg == "exit":
+            print("Exiting MAIN THREAD!")
+            break
+    except KeyboardInterrupt as user_exit:
+        message_buffer.append("exit")
         break

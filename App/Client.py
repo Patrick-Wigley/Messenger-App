@@ -3,13 +3,14 @@ import threading
 
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-IP = "192.168.0.42" #socket.gethostbyname(socket.gethostname())
+IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
 PORT = 5055
 ADDR = (IP, PORT)
-SERVER_LOCATION = ("192.168.0.42", 5055)
+SERVER_LOCATION = (input("Servers assigned IP on subnet ->:"), 5055)
 
 kill_all_non_daemon = False
 
+# Used in external file(s)
 message_buffer = []
 # If this is empty, should then handle message_buffer requets
 priority_buffer = []
@@ -32,7 +33,8 @@ def server_handle():
             # Need to tell server
             client.send(r"#IC{exit}".encode("utf-8"))
             break
-
+        
+        
 
         # currently not in use but may need if becomes non-daemon for any reason/test
         if kill_all_non_daemon:
@@ -47,8 +49,8 @@ def server_handle():
 
 def establish_p2p_private_connection():
     """ From client need to request to p2p connect to a client. Server should pair other person if they wish to communicate 
-
        """
+
 
 
 # Begin 
