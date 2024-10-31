@@ -1,3 +1,6 @@
 *.docx
 v
 __pycache__
+
+MS_db
+test.py
