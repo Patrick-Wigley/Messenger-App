@@ -99,26 +99,6 @@ def play_recording_realtime():
         if not GlobalItems.frames_buffer_in.empty():
           stream.write(GlobalItems.frames_buffer_in.get())
           time.sleep(1)
-
-
-def recv_and_play_recording_realtime():
-    """ This function combines 'play_recording_realtime' & networking side of analog comm """
-    stream = p.open(format=pya.paFloat32, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER, 
-                    input=False, output=True)
-    
-    IP = "192.168.0.42"
-    PORT = 5005
-    ADDR = (IP, PORT)
-
-
-    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    server.bind(ADDR)
-
-    print(f"[UDP SERVER] Listening at: {ADDR}")
-    
-    playing = True
-    while playing:
-      stream.write(server.recvfrom(2081))
       
 
 if __name__ == "__main__":
