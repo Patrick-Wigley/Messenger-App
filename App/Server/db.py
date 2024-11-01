@@ -1,4 +1,5 @@
 import sqlite3
+import os
 
 # DEBUGGING 
 VERBOSE = True
@@ -6,7 +7,11 @@ VERBOSE = True
 # TABLE NAMES
 ACCOUNTS_TABLE_NAME = "Person"
 
-conn = sqlite3.connect("db\\MS_db")
+DB_CONN_STR_OTHER = os.getcwd() + "\\Server\\db\\MS_db"
+DB_CONN_STR = os.getcwd() + "\\db\\MS_db"
+print(f"Conn Str: {DB_CONN_STR}")
+# NOTE: THIS DB MUST BE USED SYNCHRONOUSLY
+conn = sqlite3.connect(DB_CONN_STR, check_same_thread=False)
 cursor = conn.cursor()
 
 # ---------- Database Manipulative Functions
@@ -79,14 +84,15 @@ if __name__ == "__main__":
     # ~#~#~#~#~#~#~#~# DATABASE MANAGEMENT TOOL HERE #~#~#~#~#~#~#~#~
     # Manually make changes to database, data stored, tests all here to db here - (untracked migrations)
    
-
-    insert_into_account(username="Vegeta", ipv4=14213, join_date="2024/10/31")
+    
+    insert_into_account(username="Vegeta", password="saiyan", ipv4=14213, join_date="2024/10/31")
     print(f"Query result is: {get_account_details(username='Vegeta')}")
 
     if False:
         overwrite_table(ACCOUNTS_TABLE_NAME,
                         """ID INTEGER PRIMARY KEY,
                             username text NOT NULL,
+                            password text NOT NULL,
                             ipv4 text NOT NULL,
                             join_date DATE""")
 

@@ -3,4 +3,5 @@ v
 __pycache__
 
 MS_db
+cache.*
 test.py

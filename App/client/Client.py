@@ -1,7 +1,10 @@
 import socket
 import threading
+import sys
 
-client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+import GlobalItems
+
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
 PORT = 5055
@@ -15,6 +18,39 @@ message_buffer = []
 # If this is empty, should then handle message_buffer requets
 priority_buffer = []
 
+
+def login_handle() -> bool:
+    """ Ran before main socket sending occurs, handles login """
+    while not GlobalItems.logged_in:
+        login_details = None if len(message_buffer) == 0 else message_buffer.pop()
+        if login_details:
+            # Currently, login is message_buffer.append(input("username & password syntax = (username,password)->:"))
+            login_cmd_formatted = f"IC{'{' + 'login' + '}' } ({login_details})"
+            # Should be "#IC{login} (username, password)"
+            print(f"login cmd formatted: {login_cmd_formatted}")
+            client.send(login_cmd_formatted.encode("utf-8"))
+
+            try:
+                result = client.recv(1024).decode("utf-8")
+                print(f"[server]: {result}")
+                if result == "S":
+                    # Successfully logged into account
+                    # stores login for when logging in again
+                    with open("cache.txt", "w") as cached_login:
+                        # NOTE: FINISH USING JSON
+                        cached_login.write(f"{login_details}")
+                        cached_login.close()
+                    GlobalItems.logged_in = True
+                elif result == "F":
+                    print("Server didn't accept login attempt")
+
+            except socket.error as e:
+                print(e)
+                sys.exit()
+                
+            
+
+
 def server_handle():
     """ All server connection, communications will be handled here 
         This is ran in its own thread - while it is daemon, it needs to be READ-ONLY. Cannot ask for inputs, no interupts and etc. """
@@ -22,8 +58,17 @@ def server_handle():
     global kill_all_non_daemon
     
     print(f"Attempting to connect to: {SERVER_LOCATION}")
-    client.connect(SERVER_LOCATION)
+    
+    try:
+        client.connect(SERVER_LOCATION)
+    except socket.error as e:
+        print(e)
+        sys.exit()
     print("Connected")
+
+    # logged_in is a global here in 'client.py'
+    login_handle()
+    print("Logged in" if GlobalItems.logged_in else "NOT LOGGED IN")
 
     while True:
         # Current setup is stack - (in final product this should ideally be queued)
@@ -33,8 +78,10 @@ def server_handle():
             # Need to tell server
             client.send(r"#IC{exit}".encode("utf-8"))
             break
+    
         
-        
+        elif outgoing:
+            client.send(outgoing.encode("utf-8"))
 
         # currently not in use but may need if becomes non-daemon for any reason/test
         if kill_all_non_daemon:
@@ -42,8 +89,6 @@ def server_handle():
             break
         ##
 
-        if outgoing:
-            client.send(outgoing.encode("utf-8"))
 
 
 

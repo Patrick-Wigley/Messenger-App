@@ -2,7 +2,7 @@
 # My plan is to make a messager application with file & textual sending capabilities.
 
 from Client import *
-
+import GlobalItems
 import sys
 import time
 
@@ -15,6 +15,12 @@ import time
 
 
 print("gui stuff")
+
+while not GlobalItems.logged_in:
+    message_buffer.append(input("username & password syntax = (username,password)->:"))
+
+
+
 while True:
     # main thread does nothing yet. just idles, to keep server running till manual closure
     try:
