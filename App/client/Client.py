@@ -3,6 +3,7 @@ import threading
 import sys
 
 import GlobalItems
+import Ap_Tools
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -78,8 +79,12 @@ def server_handle():
             # Need to tell server
             client.send(r"#IC{exit}".encode("utf-8"))
             break
-    
-        
+        if outgoing == "call":
+            # Needs arg of person sending to & this persons id
+            session_id = Ap_Tools.unique_from_two_ints(_, _)
+
+        # Should be "if outgoing contains 'message' - (This should become a command with args as the person send to and the message being sent) "
+        # #IC{msg} (Goku, 'hello, how are we Kakarot')
         elif outgoing:
             client.send(outgoing.encode("utf-8"))
 

@@ -1,0 +1,5 @@
+'dbClasses.py' -> 'dbModelManager.py'
+
+This will now import db & this module (dbModelManager) will be imported externally.
+
+class db_context will be parent of model classes & hold functions required for manipulating data in db

@@ -6,8 +6,10 @@
 
 import socket
 import threading
-from db import *
-from dbClasses import Account
+from typing import Union
+
+from dbModelManager import ModelManager, AccountManager, Account
+
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -16,6 +18,9 @@ PORT = 5055
 ADDR = (IP, PORT)
 
 server.bind(ADDR)
+
+# NOTE: THIS NEEDS TO BE USED SYNCHRONOUSLY
+model_manager = ModelManager()
 
 # Command notation is: #IC{command} (arguments) 
 # Kinda redundant 
@@ -33,74 +38,64 @@ def extract_cmd(data) -> tuple:
     args = [arg.replace(" ", "") for arg in args_str.split(",")]
     return (cmd, args)
 
-def handle_clients_login(conn, addr) -> Account:
+def handle_clients_login(conn, addr) -> Union[Account, None]:
+    """ Handles a login session for a client
+        - Utilises AccountManager class to handle login authentication, account locking and the rest
+        - Only accepts 'IC{login} (username, password)' here.
+        """
+    
     while True:
         try:
             print("Looking for login details")
-            data = conn.recv(1024).decode("utf-8")
-            
+            data = conn.recv(1024).decode("utf-8")  
             cmd, args = extract_cmd(data)
-            print(args)
-            if cmd == "login":
-                if len(args) == 2:
-                    username, password = args
-                    print(f"{username}, {password}")
-                    # Here can query database and log user in.
-
-                    # NOTE: If login successful - will query database and see if login is okay - will also need to use encryption remember
-                    
-                    accounts_found = get_account_details(username=username)
-                    if len(accounts_found) != 0:
-                        account_obj = Account(accounts_found[0])
-                        # NOTE: Need to determine if password matches 
-
-
-                        conn.send("S".encode("utf-8"))
-                        return account_obj
-                    else:
-                        print("User entered account that doesn't exist")
-
-                # Username inputted doesn't exist
-                # Not implemented password lockout & retries yet
-                conn.send("F".encode("utf-8"))
-
+          
+            if cmd == "login" and len(args) == 2:  
+                login_attempt = AccountManager.handle_login(username=args[0], password=args[1])
+                if login_attempt:                
+                    conn.send("S".encode("utf-8"))
+                    return login_attempt
+                else:
+                    conn.send("F".encode("utf-8"))
+            elif cmd == "register":
+                pass
+            
             else:
-                print("ERROR - IN LOGIN?? Client & Server login state must match")
-                return False
+                print("Something went wrong")
+                return None
 
         except socket.error as e:
             print(e)
-            # Takes IC(login){username, password}
+            return None
             
 
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
 
     # Handle login here
-    account_obj = handle_clients_login(conn, addr)
-
-    if account_obj:
-        print(f"User sucessfully logged in at {addr}")
-        print(account_obj)
+    account = handle_clients_login(conn, addr)
+    if account:
+        print(f"(Account {account}) sucessfully logged in at ({addr}) ")
 
         while True:
             try:
                 data = conn.recv(1024).decode("utf-8")
                 if data:
                     # Determine if is command
+                    # #IC{cmd}(arg1, arg2, ..)
                     if "#IC" in data:
                         cmd, args = extract_cmd(data)
+                        print(f"Recieved command {cmd}")
                         
                         if cmd == "exit":
                             conn.close()
                             print(f"Closing connection with {addr}")
                             break
+
                         if cmd == "call":
-                            
                             # NOTE - Should determine session by looking at two peoples ID or groups ID
                             # args = [sessionID]
-                            # SESSIONID SHOULD BE DENOTED USING THE 'pairing function'
-                            # Using th Hopcrodt & Ullman pairing function: (i, j) := .5 (i + j + 2)(i + j - 1) + 1
+                            # SESSIONID SHOULD BE DENOTED USING THE 'pairing function' IN 'Ap_Tools.py'
                             session_id = args[0]
                             if session_id in call_sessions:
                                 # Person is accepting call
@@ -109,10 +104,15 @@ def handle_client(conn, addr):
                                 # Person began calling someone 
                                 call_sessions.append(session_id)
                             establish_p2p_call(session_id)
-                        
+
+                        if cmd == "newcontact":
+                            # args (other username, _)
+                            # Find other person, store friendship in db
+                            users = (account.username, args[0])
+
 
                     # Else is casual data, currently just prints to cmdline
-                    print(f"[{account_obj}]: {data}")
+                    print(f"[{account}]: {data}")
 
             except socket.error as e:
                 print(e)

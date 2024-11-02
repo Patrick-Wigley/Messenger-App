@@ -16,6 +16,8 @@ import time
 
 print("gui stuff")
 
+state = "login"
+
 while not GlobalItems.logged_in:
     message_buffer.append(input("username & password syntax = (username,password)->:"))
 
