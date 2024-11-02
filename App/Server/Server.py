@@ -22,7 +22,7 @@ server.bind(ADDR)
 # NOTE: THIS NEEDS TO BE USED SYNCHRONOUSLY
 model_manager = ModelManager()
 
-# Command notation is: #IC{command} (arguments) 
+# Command notation is: #IC[command] (arguments) 
 # Kinda redundant 
 INTERNAL_COMMANDS = ["login", "exit", "call"]
 
@@ -33,15 +33,20 @@ call_sessions = []
 def extract_cmd(data) -> tuple:
     """ #IC{command} (arg1, arg2, ...) """
 
-    cmd = data[data.find("{")+1 : data.find("}")]  
+    cmd = data[data.find("[")+1 : data.find("]")]  
     args_str = data[data.find("(")+1 : data.find(")")] 
     args = [arg.replace(" ", "") for arg in args_str.split(",")]
     return (cmd, args)
 
-def handle_clients_login(conn, addr) -> Union[Account, None]:
+def handle_recv(conn, addr) -> str:
+    """ Recieves data send from client - (will always be a cmd) then returns it after formatting """
+    data = conn.recv(1024).decode("utf-8") 
+    return extract_cmd(data)
+
+def handle_clients_login(conn, _) -> Union[Account, None]:
     """ Handles a login session for a client
         - Utilises AccountManager class to handle login authentication, account locking and the rest
-        - Only accepts 'IC{login} (username, password)' here.
+        - Only accepts 'IC[login] (username, password)' here.
         """
     
     while True:
@@ -81,7 +86,6 @@ def handle_client(conn, addr):
             try:
                 data = conn.recv(1024).decode("utf-8")
                 if data:
-                    # Determine if is command
                     # #IC{cmd}(arg1, arg2, ..)
                     if "#IC" in data:
                         cmd, args = extract_cmd(data)
@@ -134,6 +138,7 @@ def handle_incoming_connections():
             # When client exits need to remove thread from list - (or do i? can i just join all at the end and remove them then)
             thread_instances.append(thread)
             thread.start()
+            
 
 
 def establish_p2p_call(session):

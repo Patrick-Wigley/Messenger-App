@@ -1,10 +1,15 @@
 import sys
+
+from Client import *
+import GlobalItems
+
+
 from PyQt6.QtWidgets import (QApplication, QMainWindow, 
                              QPushButton, QFormLayout)
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
 
-from UI_Login_Register import Ui_MainWindow
+from GUI.UI_Login_Register import Ui_MainWindow
 
 
 class MainWindow:
@@ -15,7 +20,6 @@ class MainWindow:
 
         # Sub-widgets
         self.setup_login_sw()
-        self.chats_btns = []
         self.setup_home_sw()
 
         # NOTE: MainStackedWidget consists of inner SWs such as LoginAndRegisterSW & MainMenuSW - if confused again, variables of entries and so on are not encapsulated. 
@@ -42,7 +46,6 @@ class MainWindow:
 
 
         # Chat page - (For a specific chat)
-        
         #self.ui.chat_history_scroll_area
 
 
@@ -57,7 +60,7 @@ class MainWindow:
        
     # Searching contact to start NEW CHAT
     def search_account_back_btn_submit(self):
-        self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats)
+        self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats_List)
         self.ui.menu_page_title.setText("Chats")
 
     def serach_account_btn_submit(self):
@@ -95,17 +98,36 @@ class MainWindow:
 
     def select_register_btn(self):
         self.ui.LoginAndRegister_InnerSW.setCurrentWidget(self.ui.Register)
-        self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
 
     def submit_login_btn(self):
-        print(f"LOG INTO:     username: {self.ui.log_username_entry.text()} password: {self.ui.log_password_entry.text()}")
-        self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
+        GlobalItems.send_server_msg_buffer.append(f"#IC[login]({self.ui.log_username_entry.text()}, {self.ui.log_password_entry.text()})")
+
+        while True:
+            # NOTE - APPLICATION WILL BE STUCK HERE IF NO RESPONSE FROM SERVER
+            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
+            if server_feedback:
+                cmd, args = Ap_Tools.extract_cmd(server_feedback)
+                print(f"{cmd}, {args} - {server_feedback}")
+                if cmd == "login":
+                    #IC[login]("Username or Password is incorrect", "False") - Example
+                    feedback_str, proceed = args
+                    if "False" in proceed:
+                        self.ui.server_feeback_label.setText(feedback_str)
+                        self.ui.log_username_entry.setText("")
+                        self.ui.log_password_entry.setText("")
+                    else:
+                        # Load window for home page
+                        self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
+                    break
+                       
+                else:
+                    print("THIS IS NOT MEANT FOR HERE! - If error below throws, don't pop() anymore before checking that message is meant for here")
+                    raise ValueError
+                
+        # 
 
     def submit_register_btn(self):
         print(f"CREATE ACCOUNT:     email: {self.ui.reg_email_entry.text()} username: {self.ui.reg_username_entry.text()} password: {self.ui.reg_password_entry.text()}")
-
-
-
 
 
     def show(self):
@@ -113,6 +135,14 @@ class MainWindow:
 
     
 if __name__ == "__main__":
+    # ~~~ Begin client thread!
+    # Thread created for handling connection requests and setting a thread for each connection 
+    handle_connections_thread = threading.Thread(target=get_server_handle())
+    # Daemon threads ensures they finish when the program is exited - ALTHOUGH, cannot handle communication with current setup? maybe its because I am asking for an input? rather than keeping the thread read-only to send data 
+    handle_connections_thread.setDaemon(True)
+    handle_connections_thread.start()
+
+    # ~~~ Start up PyQT6 Window!
     app = QApplication(sys.argv)
     main_win = MainWindow()
     main_win.main_win.setMinimumSize(450,550)
@@ -121,3 +151,6 @@ if __name__ == "__main__":
     main_win.show()
 
     sys.exit(app.exec())
+
+else:
+    print("Doesn't run externally yet")

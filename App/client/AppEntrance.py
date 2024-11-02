@@ -6,6 +6,7 @@ import GlobalItems
 import sys
 import time
 
+
 # NOTE 24/10/24 00:23
 # Main thread is free. 
 # populates buffer which is fed into stream inside Client.py.
@@ -19,7 +20,7 @@ print("gui stuff")
 state = "login"
 
 while not GlobalItems.logged_in:
-    message_buffer.append(input("username & password syntax = (username,password)->:"))
+    GlobalItems.send_server_msg_buffer.append(input("username & password syntax = (username,password)->:"))
 
 
 
@@ -27,12 +28,12 @@ while True:
     # main thread does nothing yet. just idles, to keep server running till manual closure
     try:
         msg = input("From Main Thread! ->: ")
-        message_buffer.append(msg)
+        GlobalItems.send_server_msg_buffer.append(msg)
         
         
         if msg == "exit":
             print("Exiting MAIN THREAD!")
             break
     except KeyboardInterrupt as user_exit:
-        message_buffer.append("exit")
+        GlobalItems.send_server_msg_buffer.append("exit")
         break

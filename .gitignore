@@ -1,5 +1,6 @@
 *.docx
 v
+shared_venv
 __pycache__
 
 MS_db

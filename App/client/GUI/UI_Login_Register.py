@@ -76,6 +76,10 @@ class Ui_MainWindow(object):
         self.log_submit_btn = QtWidgets.QPushButton(parent=self.Login)
         self.log_submit_btn.setGeometry(QtCore.QRect(240, 320, 221, 51))
         self.log_submit_btn.setObjectName("log_submit_btn")
+        self.server_feeback_label = QtWidgets.QLabel(parent=self.Login)
+        self.server_feeback_label.setGeometry(QtCore.QRect(240, 140, 291, 20))
+        self.server_feeback_label.setText("")
+        self.server_feeback_label.setObjectName("server_feeback_label")
         self.LoginAndRegister_InnerSW.addWidget(self.Login)
         self.widget = QtWidgets.QWidget()
         self.widget.setObjectName("widget")
@@ -159,8 +163,8 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
-        self.MainStackedWidget.setCurrentIndex(1)
-        self.LoginAndRegister_InnerSW.setCurrentIndex(0)
+        self.MainStackedWidget.setCurrentIndex(0)
+        self.LoginAndRegister_InnerSW.setCurrentIndex(2)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):

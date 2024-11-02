@@ -3,8 +3,7 @@ from typing import Union
 
 
 class db_context:
-    def __str__(self):
-        pass
+    pass
 
 class Account(db_context):
     def __init__(self, columns):

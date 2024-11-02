@@ -24,7 +24,7 @@
      </rect>
     </property>
     <property name="currentIndex">
-     <number>1</number>
+     <number>0</number>
     </property>
     <widget class="QWidget" name="LoginAndRegistration">
      <widget class="QStackedWidget" name="LoginAndRegister_InnerSW">
@@ -37,7 +37,7 @@
        </rect>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>2</number>
       </property>
       <widget class="QWidget" name="Register">
        <widget class="QLineEdit" name="reg_username_entry">
@@ -222,6 +222,19 @@
         </property>
         <property name="text">
          <string>Login</string>
+        </property>
+       </widget>
+       <widget class="QLabel" name="server_feeback_label">
+        <property name="geometry">
+         <rect>
+          <x>240</x>
+          <y>140</y>
+          <width>291</width>
+          <height>20</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string/>
         </property>
        </widget>
       </widget>
