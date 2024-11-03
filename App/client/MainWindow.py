@@ -106,8 +106,8 @@ class MainWindow:
             # NOTE - APPLICATION WILL BE STUCK HERE IF NO RESPONSE FROM SERVER
             server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
             if server_feedback:
-                cmd, args = Ap_Tools.extract_cmd(server_feedback)
-                print(f"{cmd}, {args} - {server_feedback}")
+                cmd, args = extract_cmd(server_feedback)
+                print(f"cmd={cmd} args={args}")
                 if cmd == "login":
                     #IC[login]("Username or Password is incorrect", "False") - Example
                     feedback_str, proceed = args
@@ -124,11 +124,29 @@ class MainWindow:
                     print("THIS IS NOT MEANT FOR HERE! - If error below throws, don't pop() anymore before checking that message is meant for here")
                     raise ValueError
                 
-        # 
+        
 
     def submit_register_btn(self):
         print(f"CREATE ACCOUNT:     email: {self.ui.reg_email_entry.text()} username: {self.ui.reg_username_entry.text()} password: {self.ui.reg_password_entry.text()}")
+        GlobalItems.send_server_msg_buffer.append(f"#IC[register]({self.ui.reg_email_entry.text()}, {self.ui.reg_username_entry.text()}, {self.ui.reg_password_entry.text()})")
 
+        while True:
+            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
+            if server_feedback:
+                cmd, args = extract_cmd(server_feedback)
+                if cmd == "register":
+                    feedback_str, proceed = args
+                    if "False" in proceed:
+                        self.ui.server_feeback_label.setText(feedback_str)
+                        self.ui.reg_email_entry.setText("")
+                        self.ui.reg_username_entry.setText("")
+                        self.ui.reg_password_entry.setText("")
+                    else:
+                        self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
+                    break
+                else:
+                    print("THIS IS NOT MEANT FOR HERE! - If error below throws, don't pop() anymore before checking that message is meant for here")
+                    raise ValueError
 
     def show(self):
         self.main_win.show()

@@ -76,7 +76,7 @@ class Ui_MainWindow(object):
         self.log_submit_btn = QtWidgets.QPushButton(parent=self.Login)
         self.log_submit_btn.setGeometry(QtCore.QRect(240, 320, 221, 51))
         self.log_submit_btn.setObjectName("log_submit_btn")
-        self.server_feeback_label = QtWidgets.QLabel(parent=self.Login)
+        self.server_feeback_label = QtWidgets.QLabel(parent=self.LoginAndRegistration)
         self.server_feeback_label.setGeometry(QtCore.QRect(240, 140, 291, 20))
         self.server_feeback_label.setText("")
         self.server_feeback_label.setObjectName("server_feeback_label")

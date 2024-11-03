@@ -6,14 +6,27 @@
 
 import socket
 import threading
+import sys
+import os
 from typing import Union
 
 from dbModelManager import ModelManager, AccountManager, Account
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from Shared.SharedTools import (extract_cmd, 
+                           list_to_str_with_commas,
+                           handle_recv,
+                           handle_send)
+
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
+with open("Shared\\details", "r") as file:
+    data = file.read()
+    if data:
+        IP = data
+    else:
+        input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
+        
 PORT = 5055
 ADDR = (IP, PORT)
 
@@ -30,98 +43,94 @@ INTERNAL_COMMANDS = ["login", "exit", "call"]
 call_sessions = []
 
 # -------- Functions --------
-def extract_cmd(data) -> tuple:
-    """ #IC{command} (arg1, arg2, ...) """
 
-    cmd = data[data.find("[")+1 : data.find("]")]  
-    args_str = data[data.find("(")+1 : data.find(")")] 
-    args = [arg.replace(" ", "") for arg in args_str.split(",")]
-    return (cmd, args)
 
-def handle_recv(conn, addr) -> str:
-    """ Recieves data send from client - (will always be a cmd) then returns it after formatting """
-    data = conn.recv(1024).decode("utf-8") 
-    return extract_cmd(data)
 
-def handle_clients_login(conn, _) -> Union[Account, None]:
-    """ Handles a login session for a client
-        - Utilises AccountManager class to handle login authentication, account locking and the rest
-        - Only accepts 'IC[login] (username, password)' here.
-        """
-    
+def handle_clients_login(conn, addr) -> Union[Account, None]:
+    """
+    Params:
+        - conn [Socket] 
+        - addr [_RetAddress]
+    Returns:
+        - populated account instance [Account] - On SUCCESSFUL Authentication
+        - None [None] - On FAILED Authentication
+    Does:
+    - Utilises AccountManager class to handle login authentication, account locking and the rest
+    - Only accepts 'IC[login] (username, password)' here.
+    """
     while True:
-        try:
-            print("Looking for login details")
-            data = conn.recv(1024).decode("utf-8")  
-            cmd, args = extract_cmd(data)
-          
-            if cmd == "login" and len(args) == 2:  
-                login_attempt = AccountManager.handle_login(username=args[0], password=args[1])
-                if login_attempt:                
-                    conn.send("S".encode("utf-8"))
-                    return login_attempt
+        print(f"Waiting for login details at: {addr}")
+        result = handle_recv(conn, addr)
+        if result:
+            cmd, args = result
+            if (cmd == "login" and len(args) == 2) or (cmd == "register" and len(args) == 3):  
+                if cmd == "login":
+                    account = AccountManager.handle_login(username=args[0], password=args[1])
                 else:
-                    conn.send("F".encode("utf-8"))
-            elif cmd == "register":
-                pass
+                    account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
+                if account:                
+                    handle_send(conn, addr, cmd=cmd, args=["SUCCESS"])
+                    return account
+                else:
+                    handle_send(conn, addr, cmd=cmd, args=["FAIL"])
             
-            else:
-                print("Something went wrong")
-                return None
 
-        except socket.error as e:
-            print(e)
+
+            # elif cmd == "register" and len(args) == 3:
+            #     account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
+            #     if account:
+            #         handle_send(conn, addr, cmd="register", args=["SUCCESS"])
+            #         return account
+            #     else:
+            #         handle_send(conn, addr, cmd="register", args=["FAIL"])
+
+            else:
+                print(f"Something went wrong - received: {result}")
+                return None
+        else:
             return None
-            
+
 
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
-
+    
     # Handle login here
     account = handle_clients_login(conn, addr)
     if account:
         print(f"(Account {account}) sucessfully logged in at ({addr}) ")
 
         while True:
-            try:
-                data = conn.recv(1024).decode("utf-8")
-                if data:
-                    # #IC{cmd}(arg1, arg2, ..)
-                    if "#IC" in data:
-                        cmd, args = extract_cmd(data)
-                        print(f"Recieved command {cmd}")
-                        
-                        if cmd == "exit":
-                            conn.close()
-                            print(f"Closing connection with {addr}")
-                            break
+            received = handle_recv(conn, addr)
+            if received:
+                cmd, args = received
+                print(f"Recieved command: {cmd}, args: {args}")
+                
+                if cmd == "exit":
+                    conn.close()
+                    print(f"Closing connection with {addr}")
+                    break
 
-                        if cmd == "call":
-                            # NOTE - Should determine session by looking at two peoples ID or groups ID
-                            # args = [sessionID]
-                            # SESSIONID SHOULD BE DENOTED USING THE 'pairing function' IN 'Ap_Tools.py'
-                            session_id = args[0]
-                            if session_id in call_sessions:
-                                # Person is accepting call
-                                call_sessions.remove(session_id)
-                            else:
-                                # Person began calling someone 
-                                call_sessions.append(session_id)
-                            establish_p2p_call(session_id)
+                if cmd == "call":
+                    # NOTE - Should determine session by looking at two peoples ID or groups ID
+                    # args = [sessionID]
+                    # SESSIONID SHOULD BE DENOTED USING THE 'pairing function' IN 'Ap_Tools.py'
+                    session_id = args[0]
+                    if session_id in call_sessions:
+                        # Person is accepting call
+                        call_sessions.remove(session_id)
+                    else:
+                        # Person began calling someone 
+                        call_sessions.append(session_id)
+                    establish_p2p_call(session_id)
 
-                        if cmd == "newcontact":
-                            # args (other username, _)
-                            # Find other person, store friendship in db
-                            users = (account.username, args[0])
+                if cmd == "newcontact":
+                    # args (other username, _)
+                    # Find other person, store friendship in db
+                    users = (account.username, args[0])
 
-
-                    # Else is casual data, currently just prints to cmdline
-                    print(f"[{account}]: {data}")
-
-            except socket.error as e:
-                print(e)
+            else:
+                print(f"Received unknown data? \n-Connection: {addr} \n-Data: {received}")
                 break
-
     else:
         print("Twat this connection off, they're malicious as a mf ")
 
@@ -162,8 +171,12 @@ if __name__ == "__main__":
         handle_connections_thread.start()
 
         while True:
-            # main thread does nothing yet. just idles, to keep server running till manual closure
-            pass
+            try:
+
+                # main thread does nothing yet. just idles, to keep server running till manual closure
+                pass
+            except KeyboardInterrupt as _:
+                sys.exit()
 
 else:
     print("This doesn't link to any external usage")

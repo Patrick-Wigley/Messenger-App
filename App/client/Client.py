@@ -1,58 +1,81 @@
 import socket
 import threading
 import sys
+import os
 
 import GlobalItems
-import Ap_Tools
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from Shared.SharedTools import (pairing_function, 
+                           extract_cmd,
+                           handle_send,
+                           handle_recv)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
+with open("Shared\\details", "r") as file:
+    data = file.read()
+    if data:
+        IP = data
+        SERVER_IP = data
+    else:
+        IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
+        SERVER_IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
+
+
 PORT = 5055
 ADDR = (IP, PORT)
-SERVER_LOCATION = (input("Servers assigned IP on subnet ->:"), 5055)
+SERVER_LOCATION = (SERVER_IP, 5055)
 
 kill_all_non_daemon = False
 
 
-# If this is empty, should then handle GlobalItems.send_server_msg_buffer requets
-priority_buffer = []
-
-
 def login_handle() -> bool:
-    """ Ran before main socket sending occurs, handles login """
+    """ Ran before main socket communications occurs, handles login """
     while not GlobalItems.logged_in:
-        login_details = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
-        if login_details:
-            # Currently, login is GlobalItems.send_server_msg_buffer.append(input("username & password syntax = (username,password)->:"))
-            #login_cmd_formatted = f"IC[login] ({login_details})"
-            # Should be "#IC{login} (username, password)"
-            #print(f"login cmd formatted: {login_cmd_formatted}")
-            client.send(login_details.encode("utf-8"))
-
-            try:
-                result = client.recv(1024).decode("utf-8")
-                print(f"[server]: {result}")
-                if result == "S":
-                    # Successfully logged into account
-                    # stores login for when logging in again
-                    with open("cache.txt", "w") as cached_login:
-                        # NOTE: FINISH USING JSON
-                        cached_login.write(f"{login_details}")
-                        cached_login.close()
-                    GlobalItems.logged_in = True
-                    
-                    # Let window know
-                    GlobalItems.interpreted_server_feedback_buffer.append("#IC[login](_, True)")
-
-                elif result == "F":
-                    GlobalItems.interpreted_server_feedback_buffer.append("#IC[login](Username_or_Password_is_incorrect, False)")
-
-            except socket.error as e:
-                print(e)
-                sys.exit()
-                
+        inputted_account_details = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
+        if inputted_account_details:
+            cmd, args = extract_cmd(inputted_account_details)
+            handle_send(client, SERVER_LOCATION, cmd=cmd, args=args)
             
+            received = handle_recv(client, SERVER_LOCATION)
+            if received:
+                cmd, args = received
+                if cmd == "login" or cmd == "register":
+                    if args[0] == "SUCCESS":
+                        # Successfully logged into account
+                        # stores login for when logging in again
+                        with open("cache.txt", "w") as cached_login:
+                            # NOTE: FINISH USING JSON
+                            cached_login.write(f"{inputted_account_details}")
+                            cached_login.close()
+                        GlobalItems.logged_in = True
+                        
+                        # Let window know
+                        if cmd == "login":
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[login](_, True)")
+                        else:
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](_, True)")
+                    elif args[0] == "FAIL":
+                        if cmd == "login":
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[login](Username_or_Password_is_incorrect, False)")
+                        else:
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](Username_or_Email_is_taken, False)")
+                else:
+                    print(f"Received incorrect data from server? {received}")
+                # elif cmd == "register":
+                #     print(args)
+                #     if args[0] == "SUCCESS":
+                #         GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](_, True)")
+                #     elif args[0] == "FAIL":
+                #         GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](Username_or_Email_is_taken, False)")
+
+
+
+def handle_exit():
+    print(f"Exiting thread: {threading.get_ident()}!")
+    # Need to tell server
+    handle_send(client, SERVER_LOCATION, "exit")
 
 
 def server_handle():
@@ -73,29 +96,24 @@ def server_handle():
     print("Logged in" if GlobalItems.logged_in else "NOT LOGGED IN")
 
     while True:
+        # Logic here is if buffer has something to send to server, will shoot it off & receive something back
+
         # Current setup is stack - (in final product this should ideally be queued)
-        outgoing = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()             #input("->: ")
-        if outgoing:
-            if "exit" in outgoing:
-                print(f"Exiting thread: {threading.get_ident()}!")
-                # Need to tell server
-                client.send(r"#IC[exit]".encode("utf-8"))
+        request_out = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()             #input("->: ")
+        if request_out:
+            if "exit" in request_out:
+                handle_exit()
                 break
-            if outgoing == "call":
+            if request_out == "call":
                 # Needs arg of person sending to & this persons id
-                session_id = Ap_Tools.pairing_function(_, _)
+                session_id = pairing_function(_, _)
 
-            # Should be "if outgoing contains 'message' - (This should become a command with args as the person send to and the message being sent) "
+            # Should be "if request_out contains 'message' - (This should become a command with args as the person send to and the message being sent) "
             # #IC[msg] (Goku, 'hello, how are we Kakarot')
-            elif outgoing:
-                client.send(outgoing.encode("utf-8"))
+            elif request_out:
+                client.send(request_out.encode("utf-8"))           
 
-            # currently not in use but may need if becomes non-daemon for any reason/test
-            if kill_all_non_daemon:
-                print("Ending Thread")
-                break
-            ##
-
+            #NOTE: After sending a cmd, should receive something back from server always. Even just an acknowledgement
 
 
 

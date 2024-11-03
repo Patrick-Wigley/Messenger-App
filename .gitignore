@@ -3,6 +3,7 @@ v
 shared_venv
 __pycache__
 
+details
 MS_db
 cache.*
 test.py
