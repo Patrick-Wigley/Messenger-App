@@ -4,5 +4,6 @@ logged_in = False
 send_server_msg_buffer = []
 recv_server_msg_buffer = []
 
-# This buffer differs. It contains a processed feedback for what action to take next after looking at what the server has responded with
+# This buffer differs. 
+"""It contains a processed feedback (from the server) for what action to take next in the application side"""
 interpreted_server_feedback_buffer = []

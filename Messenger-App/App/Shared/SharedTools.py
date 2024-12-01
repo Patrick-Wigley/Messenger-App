@@ -1,13 +1,17 @@
 from typing import Union
 import socket
+import hashlib
+import os
 
+# DATA TRANSMISSION 
 def handle_recv(conn, addr) -> Union[tuple, None]:
     """ 
     Params:
         conn (Socket):
         addr (_RetAddress):
     Returns:
-        tuple|None: 'cmd, args' On SUCCESSFUL Transmission 
+        tuple: ('cmd', (args' On SUCCESSFUL Transmission 
+
     """
     try:
         data = conn.recv(1024).decode("utf-8") 
@@ -17,6 +21,14 @@ def handle_recv(conn, addr) -> Union[tuple, None]:
         return None
 
 def handle_send(conn, addr, cmd, args=None) -> bool:
+    """ 
+    Takes command want to send & optionally any arguments
+    Params:
+        conn (Socket):
+        addr (_RetAddress):
+        cmd (String):
+        ards (List): 
+    """
     try:
         send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
         conn.send(send.encode("utf-8"))
@@ -43,15 +55,26 @@ def extract_cmd(data) -> tuple:
     Params:
         data (str): #IC{command} (arg1, arg2, ...) 
     Returns:
-        tuple: (cmd, args)
+        tuple|None (("cmd" ["arg1", "arg2"])): 
+        
     # """
     cmd = data[data.find("[")+1 : data.find("]")]  
     args_str = data[data.find("(")+1 : data.find(")")] 
     args = [arg.replace(" ", "") for arg in args_str.split(",")]
     return (cmd, args)
 
+
+def check_md5():
+    pass
+
+# OTHER 
+
 def pairing_function(x, y):
-    """ https://stackoverflow.com/questions/4226317/generate-a-unique-value-for-a-combination-of-two-numbers 
+    """
+    Create a highly unique value using the two ids of 
+    x = Client making call 
+    y = Client receiving call 
+    https://stackoverflow.com/questions/4226317/generate-a-unique-value-for-a-combination-of-two-numbers 
         Tested this with some values and it's passed. 
     """
     ret =  y | (x << 32) if x > y else x | (y << 32)
@@ -60,6 +83,7 @@ def pairing_function(x, y):
 
 
 if __name__ == "__main__":
+    print(f"#~#~ RUNNING FILE {__file__} - Test all shared functions here ~#~# \n\n")
     print(pairing_function(11, 4))
     print(pairing_function(4, 11))
     print(list_to_str_with_commas(['1','2','3','4']))

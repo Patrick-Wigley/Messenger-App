@@ -99,6 +99,7 @@ def server_handle():
         # Logic here is if buffer has something to send to server, will shoot it off & receive something back
 
         # Current setup is stack - (in final product this should ideally be queued)
+        # request_out will contain the command set from the window-module to do something with it here networkly
         request_out = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()             #input("->: ")
         if request_out:
             if "exit" in request_out:

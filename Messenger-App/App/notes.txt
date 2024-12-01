@@ -1,0 +1,8 @@
+Do:
+- Retreiving a record - give client their details and use on GUI (Put email at top of page)
+- Encrypt data before sending & Decrypt data after receiving (Commands)
+- Encrypt data stored in database
+
+Ask:
+- Can I use the "SMTPLib" module for sending the password reset emails
+- Will the UDP Socket (Audio call) suffice for the peer-to-peer architecture requirement
