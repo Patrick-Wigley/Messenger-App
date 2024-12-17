@@ -30,7 +30,7 @@ class MainWindow:
     def setup_home_sw(self):
         self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats_List)
 
-        # Chats page - (main menu)        
+        # Chats page - (main menu)        # HERE WILL HAVE TO GET CHATS FROM SERVER
         dummy_data_chats = ["Goku", "Roshi"] + [str(i) for i in range(100)]
 
         for chat_names in dummy_data_chats:

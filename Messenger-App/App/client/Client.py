@@ -95,27 +95,30 @@ def server_handle():
     login_handle()
     print("Logged in" if GlobalItems.logged_in else "NOT LOGGED IN")
 
-    while True:
-        # Logic here is if buffer has something to send to server, will shoot it off & receive something back
+    if GlobalItems.logged_in:
 
-        # Current setup is stack - (in final product this should ideally be queued)
-        # request_out will contain the command set from the window-module to do something with it here networkly
-        request_out = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()             #input("->: ")
-        if request_out:
-            if "exit" in request_out:
-                handle_exit()
-                break
-            if request_out == "call":
-                # Needs arg of person sending to & this persons id
-                session_id = pairing_function(_, _)
+        while True:
+            # Logic here is if buffer has something to send to server, will shoot it off & receive something back
 
-            # Should be "if request_out contains 'message' - (This should become a command with args as the person send to and the message being sent) "
-            # #IC[msg] (Goku, 'hello, how are we Kakarot')
-            elif request_out:
-                client.send(request_out.encode("utf-8"))           
+            # Current setup is stack - (in final product this should ideally be queued)
+            # request_out will contain the command set from the window-module to do something with it here networkly
+            request_out = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()             #input("->: ")
+            if request_out:
+                if "exit" in request_out:
+                    handle_exit()
+                    break
+                if request_out == "call":
+                    # Needs arg of person sending to & this persons id
+                    session_id = pairing_function(_, _)
 
-            #NOTE: After sending a cmd, should receive something back from server always. Even just an acknowledgement
+                # Should be "if request_out contains 'message' - (This should become a command with args as the person send to and the message being sent) "
+                # #IC[msg] (Goku, 'hello, how are we Kakarot')
+                elif request_out:
+                    client.send(request_out.encode("utf-8"))           
 
+                #NOTE: After sending a cmd, should receive something back from server always. Even just an acknowledgement
+    else:
+        print("Failed to log in. Bye!")
 
 
 def establish_p2p_private_connection():
