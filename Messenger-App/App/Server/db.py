@@ -6,13 +6,16 @@ VERBOSE = True
 
 # TABLE NAMES
 ACCOUNTS_TABLE_NAME = "Person"
+CONTACTS_TABLE_NAME = "Contacts"
 
-
-DB_CONN_STR_OTHER = os.getcwd() + "\\Server\\db\\MS_db"
+DB_CONN_STR_EXTERNAL = os.getcwd() + "\\Server\\db\\MS_db"
 DB_CONN_STR = os.getcwd() + "\\db\\MS_db"
 print(f"Conn Str: {DB_CONN_STR}")
 # NOTE: THIS DB MUST BE USED SYNCHRONOUSLY
-conn = sqlite3.connect(DB_CONN_STR_OTHER, check_same_thread=False)
+if __name__ == "__main__":
+    conn = sqlite3.connect(DB_CONN_STR, check_same_thread=False)
+else:
+    conn = sqlite3.connect(DB_CONN_STR_EXTERNAL, check_same_thread=False)
 cursor = conn.cursor()
 
 # ---------- Database Manipulative Functions
@@ -38,6 +41,25 @@ def overwrite_table(table_name, table_values=""):
 
 # ---------- Data Manipulative Functions
 # No need to worry about SQL injection as these functions have no relation to forms, entries etc. Solely ran via undercovers
+def commit_changes(func):
+    func()
+    conn.commit()
+
+
+
+def insert_into_table_manual(table_name, keys, values) -> bool:
+    """ Use at own risk """
+    try:
+        cursor.execute(f"""
+                INSERT INTO {table_name} ({keys})
+                VALUES ({values})
+                """)
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"[DB ERROR]: {e}")
+        return False
+
 
 
 def check_columns_exist(kwargs) -> bool:
@@ -93,9 +115,16 @@ def get_account_details(kwargs) -> list:
                 """)
         return query_results.fetchall()
 
-def get_top_accounts_details(top=5) -> list:
+def get_account_names_and_ids(matching) -> list:
     query_results = cursor.execute(f""" 
-                SELECT * FROM {ACCOUNTS_TABLE_NAME}
+            SELECT ID, username FROM {ACCOUNTS_TABLE_NAME}
+            WHERE username LIKE '{matching}%'
+            """)
+    return query_results.fetchall()
+
+def get_top_table(table_name, top=5) -> list:
+    query_results = cursor.execute(f""" 
+                SELECT * FROM {table_name}
                 LIMIT {top}
                 """)
     return query_results.fetchall()
@@ -125,8 +154,9 @@ def insert_into_account(**kwargs) -> bool:
             print(f"[DB ERROR]: {e}")
             return False
 
-def delete_all_accounts():
-    cursor.execute(f"DELETE FROM {ACCOUNTS_TABLE_NAME}")
+def delete_all_from_table(table_name):
+    cursor.execute(f"DELETE FROM {table_name}")
+    conn.commit()
 
 def check_account_exists(username, email) -> bool:
     """ Username & Email for accounts MUST be UNIQUE """
@@ -139,6 +169,43 @@ def check_account_exists(username, email) -> bool:
     print("emails:" + str(emails_matching) + " and usernames:" + str(usernames_matching))
     return True if len(emails_matching + usernames_matching) != 0 else False
 
+def add_contact_relationship(id1, id2, paired_val) -> bool:
+    """
+    returns
+        (True|False): Depending on if sql insert was successful 
+    """
+    # IF THIS RECORD DOES NOT ALREADY EXIST THEN CREATE - (PREVENTS DUPLICATES)
+    if not cursor.execute(f"""
+                        SELECT * FROM {CONTACTS_TABLE_NAME} 
+                        WHERE AccountOneID='{id1}' and AccountTwoID='{id2}' and PairedValue='{paired_val}'
+                        """).fetchall():
+        # DOES NOT Exists already
+        try:
+            cursor.execute(f"""
+                    INSERT INTO {CONTACTS_TABLE_NAME} (AccountOneID, AccountTwoID, PairedValue)
+                    VALUES ({id1}, {id2}, {paired_val})
+                    """)
+            conn.commit()
+            return True
+        except sqlite3.Error as e:
+            print(f"[DB ERROR]: {e}")
+            return False
+    print("This contact relationship already exists")
+    return True
+
+def get_all_contacts_chats(accounts_id) -> list:
+    try:
+        query_results = cursor.execute(f"""
+                SELECT * FROM {CONTACTS_TABLE_NAME}
+                WHERE AccountOneID='{accounts_id}'
+                """)
+        return query_results.fetchall()
+    except sqlite3.Error as e:
+        print(f"[DB ERROR]: {e}")
+        return False
+
+
+
 
 if __name__ == "__main__":
     # ~#~#~#~#~#~#~#~# DATABASE MANAGEMENT TOOL HERE #~#~#~#~#~#~#~#~
@@ -146,31 +213,44 @@ if __name__ == "__main__":
    
     #delete_all_accounts()
 
-    #insert_into_account(email="testvegeta@gmail.com", username="Vegetaa", password="saiyan", ipv4=14213, join_date="2024/10/31", login_attempts=0)
-    print(f"All accounts: {get_top_accounts_details(top=10)}")
+    #insert_into_account(email="testvegeta@gmail.com", username="Vegeta", password="saiyan", ipv4=14213, join_date="2024/10/31", login_attempts=0)
+    #insert_into_account(email="testGoku@gmail.com", username="Goku", password="saiyan", ipv4=14211, join_date="2024/10/31", login_attempts=0)
+
+    #insert_into_table_manual(CONTACTS_TABLE_NAME, keys="AccountOneID, AccountTwoID", values="1,2")
+
+
+    #delete_all_from_table(CONTACTS_TABLE_NAME)
+    print(f"Top10 accounts: {get_top_table(ACCOUNTS_TABLE_NAME, top=10)}")
+    print(f"Top10 contacts: {get_top_table(CONTACTS_TABLE_NAME, top=10)}")
+
 
 
     #print(f"Query result is: {get_account_details({"username": 'Vegeta'})}")
     
+
     CHANGING_DB_CONFIGURATIONS = False
     if CHANGING_DB_CONFIGURATIONS:
-        overwrite_table(ACCOUNTS_TABLE_NAME,
-                        """ID INTEGER PRIMARY KEY,
-                            email text NOT NULL,
-                            username text NOT NULL,
-                            password text NOT NULL,
-                            ipv4 text NOT NULL,
-                            join_date DATE,
-                            login_attempts INTEGER NOT NULL
-                            """)
-        #overwrite_table(ACCOUNTS_TABLE_NAME,
-                        # """ID INTEGER PRIMARY KEY,
-                            # username text NOT NULL,
-                            # password text NOT NULL,
-                            # ipv4 text NOT NULL,
-                            # join_date DATE,
-                            # login_attempts INTEGER NOT NULL
-                            # """)
+        overwrite_table("Contacts", 
+                f"""ContactID INTEGER PRIMARY KEY,
+                    AccountOneID INTERGER, 
+                    AccountTwoID INTEGER,
+                    PairedValue INTEGER,
+                    FOREIGN KEY (AccountOneID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+                    FOREIGN KEY (AccountTwoID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+                    """
+                    )
+
+
+        #verwrite_table(ACCOUNTS_TABLE_NAME,
+        #               """ID INTEGER PRIMARY KEY,
+        #                   email text NOT NULL,
+        #                   username text NOT NULL,
+        #                   password text NOT NULL,
+        #                   ipv4 text NOT NULL,
+        #                   join_date DATE,
+        #                   login_attempts INTEGER NOT NULL
+        #                   """)
+      
 
 else:
     # External usage

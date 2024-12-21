@@ -5,8 +5,6 @@ data = (''.join(format(ord(x), 'b') for x in input_str))
 key = "1001"
 
 
-
-
 def XOR(a, b):
     """
     XOR Gate Reminder - Only true if ONLY ONE is ON
@@ -19,7 +17,7 @@ def XOR(a, b):
     ret_list = []
 
     # Linearly apply XOR to vars
-    for i in range(0, len(a)-1):
+    for i in range(0, len(a)):
         ret_list.append('0' if a[i] == b[i] else '1') # 1 if two values are NOT same; 0 if two values are same 
     return ''.join(ret_list)
 
@@ -39,8 +37,8 @@ def mod2div(dividend, divisor):
     # Taking chunk of dividend (binary_data_str) for each step/iteration
     tmp = dividend[0:chunk_len]
 
-    if type(len(dividend) / chunk_len) != type(int):
-        print("Not segmented correctly?")
+    if len(dividend) % 2 != 0:
+        print(f"Not segmented correctly?  dividend:{dividend} len:{len(dividend)} First-Chunk:{tmp}")
         raise TypeError
 
     while chunk_len < len(dividend):
@@ -48,7 +46,7 @@ def mod2div(dividend, divisor):
             tmp = XOR(divisor, tmp) + dividend[chunk_len]
         else:
             tmp = XOR('0'*chunk_len, tmp) + dividend[chunk_len]        
-        chunk_len+1
+        chunk_len += 1
         
     # XOR Final bit
     if tmp[0] == '1':
@@ -60,17 +58,14 @@ def mod2div(dividend, divisor):
     return checkedword
 
 
-
 def encode_data(data, key):
-   
-
     key_len = len(key)
     # Adds (n-1 0's) to end of data_str
-    data_with_key_len_zeros_at_end = data + ('0'*key_len-1)
+    data_with_key_len_zeros_at_end = data + ('0'*(key_len-1))
     # Performs Mod-2 Division
     remainder = mod2div(data_with_key_len_zeros_at_end, key)
 
-    codedword = data + remainder
+    codedword = data + " " + remainder
     return codedword
 
 

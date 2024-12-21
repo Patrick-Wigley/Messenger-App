@@ -12,7 +12,7 @@ from PyQt6 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(723, 622)
+        MainWindow.resize(727, 623)
         self.centralwidget = QtWidgets.QWidget(parent=MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.MainStackedWidget = QtWidgets.QStackedWidget(parent=self.centralwidget)
@@ -76,10 +76,6 @@ class Ui_MainWindow(object):
         self.log_submit_btn = QtWidgets.QPushButton(parent=self.Login)
         self.log_submit_btn.setGeometry(QtCore.QRect(240, 320, 221, 51))
         self.log_submit_btn.setObjectName("log_submit_btn")
-        self.server_feeback_label = QtWidgets.QLabel(parent=self.Login)
-        self.server_feeback_label.setGeometry(QtCore.QRect(240, 140, 291, 20))
-        self.server_feeback_label.setText("")
-        self.server_feeback_label.setObjectName("server_feeback_label")
         self.LoginAndRegister_InnerSW.addWidget(self.Login)
         self.widget = QtWidgets.QWidget()
         self.widget.setObjectName("widget")
@@ -90,6 +86,10 @@ class Ui_MainWindow(object):
         self.Login_or_register_selector_2 = QtWidgets.QPushButton(parent=self.LoginAndRegistration)
         self.Login_or_register_selector_2.setGeometry(QtCore.QRect(430, 40, 151, 51))
         self.Login_or_register_selector_2.setObjectName("Login_or_register_selector_2")
+        self.server_feeback_label = QtWidgets.QLabel(parent=self.LoginAndRegistration)
+        self.server_feeback_label.setGeometry(QtCore.QRect(190, 240, 291, 20))
+        self.server_feeback_label.setText("")
+        self.server_feeback_label.setObjectName("server_feeback_label")
         self.MainStackedWidget.addWidget(self.LoginAndRegistration)
         self.Home = QtWidgets.QWidget()
         self.Home.setObjectName("Home")
@@ -112,6 +112,9 @@ class Ui_MainWindow(object):
         self.verticalLayout = QtWidgets.QVBoxLayout(self.contacts_scrollAreaWidgetContents)
         self.verticalLayout.setObjectName("verticalLayout")
         self.menu_contacts_scroll_area.setWidget(self.contacts_scrollAreaWidgetContents)
+        self.refresh_btn = QtWidgets.QPushButton(parent=self.Chats_List)
+        self.refresh_btn.setGeometry(QtCore.QRect(304, 130, 81, 24))
+        self.refresh_btn.setObjectName("refresh_btn")
         self.Home_InnerSW.addWidget(self.Chats_List)
         self.Chat = QtWidgets.QWidget()
         self.Chat.setObjectName("Chat")
@@ -163,8 +166,9 @@ class Ui_MainWindow(object):
         MainWindow.setCentralWidget(self.centralwidget)
 
         self.retranslateUi(MainWindow)
-        self.MainStackedWidget.setCurrentIndex(0)
-        self.LoginAndRegister_InnerSW.setCurrentIndex(2)
+        self.MainStackedWidget.setCurrentIndex(1)
+        self.LoginAndRegister_InnerSW.setCurrentIndex(0)
+        self.Home_InnerSW.setCurrentIndex(0)
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
@@ -183,9 +187,20 @@ class Ui_MainWindow(object):
         self.Login_or_register_selector.setText(_translate("MainWindow", "Login"))
         self.Login_or_register_selector_2.setText(_translate("MainWindow", "Register An Account"))
         self.newchat_btn.setText(_translate("MainWindow", "New Chat"))
+        self.refresh_btn.setText(_translate("MainWindow", "Refresh Chats"))
         self.search_account_label.setText(_translate("MainWindow", "Search Account"))
         self.search_account_submit_btn.setText(_translate("MainWindow", "Search"))
         self.search_account_back_btn.setText(_translate("MainWindow", "Back"))
         self.menu_main_title.setText(_translate("MainWindow", "<html><head/><body><p><span style=\" font-size:26pt; font-weight:700;\">UOD Messenger App</span></p></body></html>"))
         self.menu_made_by.setText(_translate("MainWindow", "<html><head/><body><p><span style=\" font-size:8pt; font-weight:700;\">Made by Patrick W (100715281)</span></p></body></html>"))
         self.menu_page_title.setText(_translate("MainWindow", "<html><head/><body><p><span style=\" font-size:14pt;\">Chats</span></p></body></html>"))
+
+
+if __name__ == "__main__":
+    import sys
+    app = QtWidgets.QApplication(sys.argv)
+    MainWindow = QtWidgets.QMainWindow()
+    ui = Ui_MainWindow()
+    ui.setupUi(MainWindow)
+    MainWindow.show()
+    sys.exit(app.exec())

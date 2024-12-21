@@ -31,6 +31,7 @@ def handle_send(conn, addr, cmd, args=None) -> bool:
     """
     try:
         send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
+        print(f"SENDING: {send}")
         conn.send(send.encode("utf-8"))
         return True
     except socket.error as e:
@@ -84,6 +85,20 @@ def pairing_function(x, y):
 
 if __name__ == "__main__":
     print(f"#~#~ RUNNING FILE {__file__} - Test all shared functions here ~#~# \n\n")
-    print(pairing_function(11, 4))
-    print(pairing_function(4, 11))
-    print(list_to_str_with_commas(['1','2','3','4']))
+   
+    list_to_str_with_commas("")
+
+    if False:
+        pair_one = (100, 4)
+        pair_two = (99,4)
+
+        # Tests if pairing either way returns same value
+        assert (pairing_function(pair_one[0], pair_one[1])) == (pairing_function(pair_one[1], pair_one[0]))
+        # Tests if two different pairs have unique values
+        assert (pairing_function(pair_one[0], pair_one[1])) != (pairing_function(pair_two[0], pair_two[1]))
+
+    
+    #print(pairing_function(100, 4))
+    #print(pairing_function(4, 100))
+   
+    #print(list_to_str_with_commas(['1','2','3','4']))

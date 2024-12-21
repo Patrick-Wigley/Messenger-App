@@ -22,7 +22,6 @@ class MainWindow(QMainWindow):
         
 
         # ~~~~~~~ Login Layout
-        
         self.login_or_signup_btn = QPushButton("You Are Logging In") # Slides to You Are Signing Up
         self.login_or_signup_btn.clicked.connect(self.login_or_signup_btn_clicked)
         self.login_or_signup_btn.setFixedSize(150, 150)

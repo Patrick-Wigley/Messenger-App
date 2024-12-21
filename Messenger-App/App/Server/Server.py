@@ -10,13 +10,14 @@ import sys
 import os
 from typing import Union
 
-from dbModelManager import ModelManager, AccountManager, Account
+from dbModelManager import ModelManager, AccountManager, Account, ContactsManger
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (extract_cmd, 
                            list_to_str_with_commas,
                            handle_recv,
-                           handle_send)
+                           handle_send,
+                           pairing_function)
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -75,7 +76,6 @@ def handle_clients_login(conn, addr) -> Union[Account, None]:
                     handle_send(conn, addr, cmd=cmd, args=["FAIL"])
             
 
-
             # elif cmd == "register" and len(args) == 3:
             #     account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
             #     if account:
@@ -110,7 +110,7 @@ def handle_client(conn, addr):
                     print(f"Closing connection with {addr}")
                     break
 
-                if cmd == "call":
+                elif cmd == "call":
                     # NOTE - Should determine session by looking at two peoples ID or groups ID
                     # args = [sessionID]
                     # SESSIONID SHOULD BE DENOTED USING THE 'pairing function' IN 'Ap_Tools.py'
@@ -122,11 +122,46 @@ def handle_client(conn, addr):
                         # Person began calling someone 
                         call_sessions.append(session_id)
                     establish_p2p_call(session_id)
+                
+                elif cmd == "SendMsgToLiveChat":
+                    pass
+                
+                elif cmd == "SearchContact":
+                    result = ContactsManger.handle_search_contact(username=args[0])
+                    print(result)
+                    if result:
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=[
+                            f'{account[0]}, {account[1]}' for account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
+                            ])
+                    else:
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["FAIL"])
 
-                if cmd == "newcontact":
-                    # args (other username, _)
-                    # Find other person, store friendship in db
-                    users = (account.username, args[0])
+                elif cmd == "SaveContact":
+                    add_contact_result = ContactsManger.handleAddContactRelationship(thisID=account.id, otherID=args[0], paired_value=pairing_function(int(account.id), int(args[0])))
+                    if add_contact_result:
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["SUCCESS"])
+                    else:
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["FAIL"])
+                        
+
+                elif cmd == "GetChats":
+                    results = ContactsManger.handle_get_all_chats_for_contact(account.id)
+                    if results:
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=results)
+                    else:
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["FAIL"])
+
+
+                # Could add this but won't be able to find the time.. (Going to just make a live chat room for two clients)
+                # if cmd == "addContact":
+                #     # args (other username, _)
+                #     # Find other person, store friendship in db
+                #     users = (account.username, args[0])
+                #     ContactsManger.handleSendRequest(senderID=account.id, receiverID=args[0])
+
+                if cmd == "acceptContact":
+                    pass
+                    
 
             else:
                 print(f"Received unknown data? \n-Connection: {addr} \n-Data: {received}")

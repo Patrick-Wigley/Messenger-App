@@ -23,5 +23,12 @@ def extract_cmd(data) -> tuple:
     return (cmd, args)
 
 
+def hash_data(data) -> str:
+    return data # NOTE HASH THIS
+
+
+
 if __name__ == "__main__":
+    
+    
     print(list_to_str_with_commas([1,2,3,4]))
