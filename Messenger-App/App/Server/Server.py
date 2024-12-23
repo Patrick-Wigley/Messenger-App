@@ -10,7 +10,7 @@ import sys
 import os
 from typing import Union
 
-from dbModelManager import ModelManager, AccountManager, Account, ContactsManger
+from dbModelManager import AccountManager, Account, ContactsManger, MessageManager
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (extract_cmd, 
@@ -34,7 +34,7 @@ ADDR = (IP, PORT)
 server.bind(ADDR)
 
 # NOTE: THIS NEEDS TO BE USED SYNCHRONOUSLY
-model_manager = ModelManager()
+#model_manager = ModelManager()
 
 # Command notation is: #IC[command] (arguments) 
 # Kinda redundant 
@@ -53,10 +53,10 @@ def handle_clients_login(conn, addr) -> Union[Account, None]:
         - conn [Socket] 
         - addr [_RetAddress]
     Returns:
-        - populated account instance [Account] - On SUCCESSFUL Authentication
+        - populated clients_account instance [Account] - On SUCCESSFUL Authentication
         - None [None] - On FAILED Authentication
     Does:
-    - Utilises AccountManager class to handle login authentication, account locking and the rest
+    - Utilises AccountManager class to handle login authentication, clients_account locking and the rest
     - Only accepts 'IC[login] (username, password)' here.
     """
     while True:
@@ -66,21 +66,21 @@ def handle_clients_login(conn, addr) -> Union[Account, None]:
             cmd, args = result
             if (cmd == "login" and len(args) == 2) or (cmd == "register" and len(args) == 3):  
                 if cmd == "login":
-                    account = AccountManager.handle_login(username=args[0], password=args[1])
+                    clients_account = AccountManager.handle_login(username=args[0], password=args[1])
                 else:
-                    account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
-                if account:                
+                    clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
+                if clients_account:                
                     handle_send(conn, addr, cmd=cmd, args=["SUCCESS"])
-                    return account
+                    return clients_account
                 else:
                     handle_send(conn, addr, cmd=cmd, args=["FAIL"])
             
 
             # elif cmd == "register" and len(args) == 3:
-            #     account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
-            #     if account:
+            #     clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
+            #     if clients_account:
             #         handle_send(conn, addr, cmd="register", args=["SUCCESS"])
-            #         return account
+            #         return clients_account
             #     else:
             #         handle_send(conn, addr, cmd="register", args=["FAIL"])
 
@@ -95,9 +95,9 @@ def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
     
     # Handle login here
-    account = handle_clients_login(conn, addr)
-    if account:
-        print(f"(Account {account}) sucessfully logged in at ({addr}) ")
+    clients_account = handle_clients_login(conn, addr)
+    if clients_account:
+        print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
 
         while True:
             received = handle_recv(conn, addr)
@@ -126,38 +126,56 @@ def handle_client(conn, addr):
                 elif cmd == "SendMsgToLiveChat":
                     pass
                 
+                elif cmd == "SendMessage":
+                    result = MessageManager.handle_send_message(message=args[0], sender_id=clients_account.id, receiver_id=args[1])
+                    print(result)
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=result)
+                    
                 elif cmd == "SearchContact":
                     result = ContactsManger.handle_search_contact(username=args[0])
                     print(result)
                     if result:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=[
-                            f'{account[0]}, {account[1]}' for account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
+                            (clients_account[0], clients_account[1]) for clients_account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
                             ])
+                
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["FAIL"])
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=['FAIL'])
 
                 elif cmd == "SaveContact":
-                    add_contact_result = ContactsManger.handleAddContactRelationship(thisID=account.id, otherID=args[0], paired_value=pairing_function(int(account.id), int(args[0])))
+                    add_contact_result = ContactsManger.handleAddContactRelationship(thisID=clients_account.id, otherID=args[0], paired_value=pairing_function(int(clients_account.id), int(args[0])))
                     if add_contact_result:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["SUCCESS"])
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=True)
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["FAIL"])
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"])
                         
 
-                elif cmd == "GetChats":
-                    results = ContactsManger.handle_get_all_chats_for_contact(account.id)
+                elif cmd == "GetChats": #GetContacts
+                    results = ContactsManger.handle_get_all_chats_for_contact(clients_account.id)
                     if results:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=results)
+                        accounts = [ContactsManger.handle_search_contact(id=x[2])[0] for x in results]
+                        
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=accounts)
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["FAIL"])
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False)
+
+                elif cmd == "GetMessagesHistory":
+                    results = MessageManager.handle_get_chat_instance_messages(sender_id=clients_account.id, receiver_id=args[0])
+                    print(results)
+                    
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=results)
+                else:
+                    print("Received unkwown cmd - Is this implemented yet?")
+
+               
 
 
                 # Could add this but won't be able to find the time.. (Going to just make a live chat room for two clients)
                 # if cmd == "addContact":
                 #     # args (other username, _)
                 #     # Find other person, store friendship in db
-                #     users = (account.username, args[0])
-                #     ContactsManger.handleSendRequest(senderID=account.id, receiverID=args[0])
+                #     users = (clients_account.username, args[0])
+                #     ContactsManger.handleSendRequest(senderID=clients_account.id, receiverID=args[0])
 
                 if cmd == "acceptContact":
                     pass

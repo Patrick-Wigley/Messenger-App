@@ -125,6 +125,22 @@ class Ui_MainWindow(object):
         self.chat_history_scrollAreaWidgetContents = QtWidgets.QWidget()
         self.chat_history_scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 459, 359))
         self.chat_history_scrollAreaWidgetContents.setObjectName("chat_history_scrollAreaWidgetContents")
+        
+        self.verticalLayout_chat_history = QtWidgets.QVBoxLayout(self.chat_history_scrollAreaWidgetContents)
+        self.verticalLayout_chat_history.setObjectName("verticalLayout_chat_history")
+        self.enter_message_entry = QtWidgets.QLineEdit(parent=self.Chat)
+        self.enter_message_entry.setGeometry(QtCore.QRect(100, 450, 381, 41))
+        self.enter_message_entry.setObjectName("enter_message_entry")
+        
+        self.Chat_back_btn = QtWidgets.QPushButton(parent=self.Chat)
+        self.Chat_back_btn.setGeometry(QtCore.QRect(30, 30, 111, 51))
+        self.Chat_back_btn.setObjectName("Chat_back_btn")
+        self.Chat_send_btn = QtWidgets.QPushButton(parent=self.Chat)
+        self.Chat_send_btn.setGeometry(QtCore.QRect(480, 450, 81, 41))
+        self.Chat_send_btn.setObjectName("Chat_send_btn")
+
+
+
         self.chat_history_scroll_area.setWidget(self.chat_history_scrollAreaWidgetContents)
         self.Home_InnerSW.addWidget(self.Chat)
         self.Search_Contact = QtWidgets.QWidget()
@@ -188,6 +204,8 @@ class Ui_MainWindow(object):
         self.newchat_btn.setText(_translate("MainWindow", "New Chat"))
         self.search_account_label.setText(_translate("MainWindow", "Search Account"))
         self.refresh_btn.setText(_translate("MainWindow", "Refresh Chats"))
+        self.Chat_back_btn.setText(_translate("MainWindow", "Back"))
+        self.Chat_send_btn.setText(_translate("MainWindow", "Send"))
         self.search_account_submit_btn.setText(_translate("MainWindow", "Search"))
         self.search_account_back_btn.setText(_translate("MainWindow", "Back"))
         self.menu_main_title.setText(_translate("MainWindow", "<html><head/><body><p><span style=\" font-size:26pt; font-weight:700;\">UOD Messenger App</span></p></body></html>"))

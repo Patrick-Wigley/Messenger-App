@@ -20,7 +20,10 @@ def handle_recv(conn, addr) -> Union[tuple, None]:
         print(f"[ERROR]: IN {handle_recv.__name__}\n{e}")
         return None
 
-def handle_send(conn, addr, cmd, args=None) -> bool:
+def extract_args_from_list(args) -> str:
+    return ''.join(args)
+
+def handle_send(conn, addr, cmd=None, args=None, request_out=None) -> bool:
     """ 
     Takes command want to send & optionally any arguments
     Params:
@@ -30,7 +33,10 @@ def handle_send(conn, addr, cmd, args=None) -> bool:
         ards (List): 
     """
     try:
-        send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
+        if not request_out:
+            send = f"#IC[{cmd}] ({args})" # send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
+        else:
+            send = request_out
         print(f"SENDING: {send}")
         conn.send(send.encode("utf-8"))
         return True
@@ -60,8 +66,27 @@ def extract_cmd(data) -> tuple:
         
     # """
     cmd = data[data.find("[")+1 : data.find("]")]  
-    args_str = data[data.find("(")+1 : data.find(")")] 
-    args = [arg.replace(" ", "") for arg in args_str.split(",")]
+    
+
+
+    last_closed_bracket_index = len(data)-(data[::-1].find(")"))-1
+    args_tuple = data[data.find("(") : last_closed_bracket_index+1]
+    
+    args_evaluation = eval(args_tuple)
+    print(f"Evalutaed string is: {args_evaluation} - type is {type(args_evaluation)}")
+    
+    if isinstance(args_evaluation, tuple):
+        args = list(args_evaluation)
+    elif not isinstance(args_evaluation, list):
+        args = [args_evaluation]
+    else:
+        args = args_evaluation
+    print(f"final args state: {args}")
+
+    # args_str = data[data.find("(")+1 : last_closed_bracket_index] # snip out first ( and last ) in string
+
+    # args = [arg.replace(" ", "") for arg in args_str.split(",")]
+
     return (cmd, args)
 
 
@@ -86,7 +111,9 @@ def pairing_function(x, y):
 if __name__ == "__main__":
     print(f"#~#~ RUNNING FILE {__file__} - Test all shared functions here ~#~# \n\n")
    
-    list_to_str_with_commas("")
+    
+    print(extract_cmd("#IC[Something]((1,2), 11)"))
+
 
     if False:
         pair_one = (100, 4)

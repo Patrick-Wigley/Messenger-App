@@ -38,8 +38,8 @@ class ModelManager:
     def get_accounts(**user_input):
         """ Get accounts that match according to query """
         return db.get_account_details(user_input)
-    def get_accounts_user_searched_for(matching_username):
-        return db.get_account_names_and_ids(matching_username)
+    def get_accounts_user_searched_for(username=None, id=None):
+        return db.get_account_names_and_ids(username, id)
 
     def create_account(**user_input):
         if not db.check_account_exists(username=user_input["username"], email=user_input["email"]):
@@ -55,6 +55,13 @@ class ModelManager:
         return db.add_contact_relationship(id1=user_input["thisID"], id2=user_input["otherID"], paired_val=user_input["paired_value"])
     def get_contacts_chats(contactID):
         return db.get_all_contacts_chats(contactID)
+
+    # MESSAGES
+    def add_message_from_to_specific(message, sender_id, receiver_id) -> bool:
+        return db.add_message_for_chat(message_text=message, sender_id=sender_id, receiver_id=receiver_id)
+    def get_messages_from_chat(sender_id, receiver_id) -> list:
+        return db.get_messages_for_chat(sender_id=sender_id, receiver_id=receiver_id)
+
 
 
 DEFAULT_ALLOWED_LOGIN_ATTEMPTS = 7
@@ -90,12 +97,12 @@ class AccountManager:
 
         
 class ContactsManger:
-    def handle_search_contact(**user_input) -> Union[list, None]:
+    def handle_search_contact(username=None, id=None) -> Union[list, None]:
         """Returns 
         - List (matches found)
         - None (No matches)
           """
-        __matching_accounts = ModelManager.get_accounts_user_searched_for(matching_username=user_input["username"]) # INDEX 0 IS THE TUPLE (ID, username)
+        __matching_accounts = ModelManager.get_accounts_user_searched_for(username=username, id=id) # INDEX 0 IS THE TUPLE (ID, username)
         if __matching_accounts:
             return __matching_accounts
         else:
@@ -110,13 +117,30 @@ class ContactsManger:
         else:
             return False 
 
-    def handle_get_all_chats_for_contact(user_id) -> bool:
+    def handle_get_all_chats_for_contact(user_id) -> list:
         __results = ModelManager.get_contacts_chats(user_id)
         return __results
 
 
     def handleSendRequest():
         pass
+
+class MessageManager:
+    def handle_send_message(message, sender_id, receiver_id):
+        __successful = ModelManager.add_message_from_to_specific(message=message, sender_id=sender_id, receiver_id=receiver_id)
+        if __successful:
+            return True
+        else:
+            return False
+
+    def handle_get_chat_instance_messages(sender_id, receiver_id):
+        __result = ModelManager.get_messages_from_chat(sender_id=sender_id, receiver_id=receiver_id)
+        if len(__result) != 0:
+            return __result
+        else:
+            # Couldn't find message for this chat
+            print("DEBUG No messages for this chat")
+            return []
 
 
 class ChatsManager:

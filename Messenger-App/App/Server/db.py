@@ -7,6 +7,7 @@ VERBOSE = True
 # TABLE NAMES
 ACCOUNTS_TABLE_NAME = "Person"
 CONTACTS_TABLE_NAME = "Contacts"
+MESSAGES_TABLE_NAME = "Messages"
 
 DB_CONN_STR_EXTERNAL = os.getcwd() + "\\Server\\db\\MS_db"
 DB_CONN_STR = os.getcwd() + "\\db\\MS_db"
@@ -115,11 +116,18 @@ def get_account_details(kwargs) -> list:
                 """)
         return query_results.fetchall()
 
-def get_account_names_and_ids(matching) -> list:
-    query_results = cursor.execute(f""" 
-            SELECT ID, username FROM {ACCOUNTS_TABLE_NAME}
-            WHERE username LIKE '{matching}%'
-            """)
+def get_account_names_and_ids(username = None, ID = None) -> list:
+    if username:
+        query_results = cursor.execute(f""" 
+                SELECT ID, username FROM {ACCOUNTS_TABLE_NAME}
+                WHERE username LIKE '{username}%'
+                """)
+    else:
+        query_results = cursor.execute(f""" 
+                SELECT ID, username FROM {ACCOUNTS_TABLE_NAME}
+                WHERE ID='{ID}'
+                """)
+
     return query_results.fetchall()
 
 def get_top_table(table_name, top=5) -> list:
@@ -135,7 +143,7 @@ def insert_into_account(**kwargs) -> bool:
     returns
         (True|False): Depending on if sql insert was successful 
     """
-    print(f"Keys: {list(kwargs.keys())}")
+    #print(f"Keys: {list(kwargs.keys())}")
     keys_str = str(list(kwargs.keys()))
     keys_str = keys_str[1:len(keys_str)-1]
 
@@ -166,8 +174,9 @@ def check_account_exists(username, email) -> bool:
     email_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE email='{email}'")
     emails_matching = email_search.fetchall()
     
-    print("emails:" + str(emails_matching) + " and usernames:" + str(usernames_matching))
     return True if len(emails_matching + usernames_matching) != 0 else False
+
+## CONTACTS
 
 def add_contact_relationship(id1, id2, paired_val) -> bool:
     """
@@ -204,7 +213,31 @@ def get_all_contacts_chats(accounts_id) -> list:
         print(f"[DB ERROR]: {e}")
         return False
 
+## MESSAGES
 
+def get_messages_for_chat(sender_id, receiver_id) -> list:
+    try:
+        query_result = cursor.execute(f"""
+                    SELECT * FROM {MESSAGES_TABLE_NAME}
+                    WHERE (SenderID='{sender_id}' AND ReceiverID='{receiver_id}') OR (SenderID='{receiver_id}' AND ReceiverID='{sender_id}')
+            """)
+        return query_result.fetchall()
+    except sqlite3.Error as e:
+        print(f"[DB ERROR]: {e}")
+        return False
+
+
+def add_message_for_chat(message_text, sender_id, receiver_id) -> bool:
+    try:
+        cursor.execute(f"""
+                    INSERT INTO {MESSAGES_TABLE_NAME} (MessageText, SenderID, ReceiverID)
+                    VALUES ('{message_text}', '{sender_id}', '{receiver_id}')
+            """)
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        print(f"[DB ERROR]: {e}")
+        return False
 
 
 if __name__ == "__main__":
@@ -218,11 +251,14 @@ if __name__ == "__main__":
 
     #insert_into_table_manual(CONTACTS_TABLE_NAME, keys="AccountOneID, AccountTwoID", values="1,2")
 
+    #add_message_for_chat("Hello Goku From Vegeta (I think)", 1, 2)
+    print(get_messages_for_chat(1, 2))
+
 
     #delete_all_from_table(CONTACTS_TABLE_NAME)
     print(f"Top10 accounts: {get_top_table(ACCOUNTS_TABLE_NAME, top=10)}")
     print(f"Top10 contacts: {get_top_table(CONTACTS_TABLE_NAME, top=10)}")
-
+    print(f"Top10 Messages: {get_top_table(MESSAGES_TABLE_NAME, top=10)}")
 
 
     #print(f"Query result is: {get_account_details({"username": 'Vegeta'})}")
@@ -230,18 +266,28 @@ if __name__ == "__main__":
 
     CHANGING_DB_CONFIGURATIONS = False
     if CHANGING_DB_CONFIGURATIONS:
-        overwrite_table("Contacts", 
-                f"""ContactID INTEGER PRIMARY KEY,
-                    AccountOneID INTERGER, 
-                    AccountTwoID INTEGER,
-                    PairedValue INTEGER,
-                    FOREIGN KEY (AccountOneID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
-                    FOREIGN KEY (AccountTwoID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
-                    """
-                    )
+        # create_table(MESSAGES_TABLE_NAME,
+        #         f"""MessageID INTEGER PRIMARY KEY,
+        #             MessageText text NOT NULL,
+        #             SenderID INTEGER,
+        #             ReceiverID INTEGER,
+        #             FOREIGN KEY (SenderID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+        #             FOREIGN KEY (ReceiverID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+        #             """)
+
+        
+        # overwrite_table("Contacts", 
+        #         f"""ContactID INTEGER PRIMARY KEY,
+        #             AccountOneID INTERGER, 
+        #             AccountTwoID INTEGER,
+        #             PairedValue INTEGER,
+        #             FOREIGN KEY (AccountOneID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+        #             FOREIGN KEY (AccountTwoID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+        #             """
+        #             )
 
 
-        #verwrite_table(ACCOUNTS_TABLE_NAME,
+        #overwrite_table(ACCOUNTS_TABLE_NAME,
         #               """ID INTEGER PRIMARY KEY,
         #                   email text NOT NULL,
         #                   username text NOT NULL,
@@ -250,7 +296,7 @@ if __name__ == "__main__":
         #                   join_date DATE,
         #                   login_attempts INTEGER NOT NULL
         #                   """)
-      
+        print("\n\nENDING CHANGING DB CONFIGURE")
 
 else:
     # External usage
@@ -260,10 +306,32 @@ else:
 
     # NOTE - Need to automatically run through & setup database tables if tables don't exist - (May be server is running this or after a refresh)
     create_table(ACCOUNTS_TABLE_NAME,
-                """ID INTEGER PRIMARY KEY,
-                    username text NOT NULL,
-                    ipv4 text NOT NULL,
-                    join_date DATE""")
+             """ID INTEGER PRIMARY KEY,
+                email text NOT NULL,
+                username text NOT NULL,
+                password text NOT NULL,
+                ipv4 text NOT NULL,
+                join_date DATE,
+                login_attempts INTEGER NOT NULL
+                """)
+
+    create_table(CONTACTS_TABLE_NAME, 
+            f"""ContactID INTEGER PRIMARY KEY,
+                AccountOneID INTERGER, 
+                AccountTwoID INTEGER,
+                PairedValue INTEGER,
+                FOREIGN KEY (AccountOneID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+                FOREIGN KEY (AccountTwoID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+                """)
+    
+    create_table(MESSAGES_TABLE_NAME,
+            f"""MessageID INTEGER PRIMARY KEY,
+                MessageText text NOT NULL,
+                SenderID INTEGER,
+                ReceiverID INTEGER,
+                FOREIGN KEY (SenderID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+                FOREIGN KEY (ReceiverID) REFERENCES {ACCOUNTS_TABLE_NAME} (ID)
+                """)
 
     if VERBOSE:
         print("[DB]: Done")

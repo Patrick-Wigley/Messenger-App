@@ -34,14 +34,14 @@ def login_handle() -> bool:
     while not GlobalItems.logged_in:
         inputted_account_details = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
         if inputted_account_details:
-            cmd, args = extract_cmd(inputted_account_details)
-            handle_send(client, SERVER_LOCATION, cmd=cmd, args=args)
+            #cmd, args = extract_cmd(inputted_account_details)
+            handle_send(client, SERVER_LOCATION, request_out=inputted_account_details)
             
             received = handle_recv(client, SERVER_LOCATION)
             if received:
                 cmd, args = received
                 if cmd == "login" or cmd == "register":
-                    if args[0] == "SUCCESS":
+                    if "SUCCESS" in args[0]:
                         # Successfully logged into account
                         # stores login for when logging in again
                         with open("cache.txt", "w") as cached_login:
@@ -50,16 +50,17 @@ def login_handle() -> bool:
                             cached_login.close()
                         GlobalItems.logged_in = True
                         
+                        print(f"Succesfully: {cmd}")
                         # Let window know
                         if cmd == "login":
-                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[login](_, True)")
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('_', True)")
                         else:
-                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](_, True)")
-                    elif args[0] == "FAIL":
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('_', True)")
+                    elif "FAIL" in args[0]:
                         if cmd == "login":
-                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[login](Username_or_Password_is_incorrect, False)")
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('Username_or_Password_is_incorrect', False)")
                         else:
-                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](Username_or_Email_is_taken, False)")
+                            GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('Username_or_Email_is_taken', False)")
                 else:
                     print(f"Received incorrect data from server? {received}")
 
@@ -111,6 +112,9 @@ def server_handle():
                     # Needs arg of person sending to & this persons id
                     session_id = pairing_function(_, _)
 
+                elif "RefreshChats" in request_out:
+                    handle_refresh_chats(request_out)
+
                 elif "BeginChat" in request_out:
                     handle_start_chat(request_out)
 
@@ -122,6 +126,13 @@ def server_handle():
 
                 elif "GetChats" in request_out:
                     handle_get_chats(request_out) # MAKE BUTTON TO GET THIS REQUEST GOING
+
+                elif "GetMessagesHistory" in request_out:
+                    handle_get_chats_history(request_out)
+
+                elif "SendMessage" in request_out:
+                    handle_send_message(request_out)
+
 
                 # Should be "if request_out contains 'message' - (This should become a command with args as the person send to and the message being sent) "
                 # #IC[msg] (Goku, 'hello, how are we Kakarot')
@@ -135,6 +146,35 @@ def server_handle():
 
 # -=-= POST-LOGIN FUNCTIONS =-=- #
 # These takes parameters & works in-conjuction with 'server_handle()'"
+# These functions send message and then wait for the appropriate response to handle it (SYNCHRONOUS)
+def handle_send_message(request_out) -> None:
+    """IC = SendMessage"""
+    client.send(request_out.encode("utf-8"))
+    received = handle_recv(client, SERVER_LOCATION)
+    if received:
+        cmd, args = received    
+        GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SendMessage]({args})")
+
+
+def handle_get_chats_history(request_out) -> None:
+    """IC = GetMessagesHistory"""
+    client.send(request_out.encode("utf-8"))
+    received = handle_recv(client, SERVER_LOCATION)
+    if received:
+        cmd, args = received    
+        GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetMessagesHistory]({args})")
+
+
+
+def handle_refresh_chats(request_out) -> None:
+    """IC = RefreshChats"""
+    client.send(request_out.encode("utf-8"))
+    received = handle_recv(client, SERVER_LOCATION)
+    if received:
+        cmd, args = received    
+        print(cmd, " and args: ", args)
+        
+
 
 def handle_get_chats(request_out) -> None:
     """IC = GetChats"""
@@ -143,7 +183,11 @@ def handle_get_chats(request_out) -> None:
     if received:
         cmd, args = received    
         if cmd == "GetChats":
-            print(f"FOR {cmd} GOT - {args}")
+            if args[0] != False:
+                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetChats]({args})")
+            else:
+                GlobalItems.interpreted_server_feedback_buffer.append("#IC[GetChats](False)")
+
 
 
 def handle_save_contact(request_out) -> None:
@@ -154,12 +198,12 @@ def handle_save_contact(request_out) -> None:
         cmd, args = received
         
         if cmd == "SaveContact":
-            if args[0] == "SUCCESS":
+            if args[0] == True:
                 print("Server sucessfuly saved contact")
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](SUCCESS)")
+                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](True)")
             else:
                 print("Something went wrong when attemptign to save contact")
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](FAIL)")
+                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](False)")
 
 
 def handle_search_contacts(request_out) -> None:
@@ -173,11 +217,11 @@ def handle_search_contacts(request_out) -> None:
         if cmd == "SearchContact":
             print(f"Received: {args}")
             print(f"list to string with commas: {list_to_str_with_commas(args)}")
-            if args[0] != "FAIL":
+            if "FAIL" not in args[0]:
                 # Found results
-                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SearchContact]({list_to_str_with_commas(args)})")
+                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SearchContact]({args})")
             else:
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SearchContact](FALSE)")
+                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SearchContact](False)")
                 # Did NOT find results
 
 

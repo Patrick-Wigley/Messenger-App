@@ -278,7 +278,7 @@
        </rect>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="Chats_List">
        <widget class="QPushButton" name="newchat_btn">
@@ -361,6 +361,42 @@
           </rect>
          </property>
         </widget>
+       </widget>
+       <widget class="QLineEdit" name="enter_message_entry">
+        <property name="geometry">
+         <rect>
+          <x>100</x>
+          <y>450</y>
+          <width>381</width>
+          <height>41</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="Chat_back_btn">
+        <property name="geometry">
+         <rect>
+          <x>30</x>
+          <y>30</y>
+          <width>111</width>
+          <height>51</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Back</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="Chat_send_btn">
+        <property name="geometry">
+         <rect>
+          <x>480</x>
+          <y>450</y>
+          <width>81</width>
+          <height>41</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Send</string>
+        </property>
        </widget>
       </widget>
       <widget class="QWidget" name="Search_Contact">
