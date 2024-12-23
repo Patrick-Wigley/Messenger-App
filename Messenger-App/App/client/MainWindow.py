@@ -11,9 +11,9 @@ from PyQt6.QtCore import *
 
 from GUI.UI_Login_Register import Ui_MainWindow
 
-
+# -=--=-=-=--= TOOLS 
 def handle_server_feedback(cmd_searching_for) -> tuple:
-    """ Returns (success|failure, args) """
+    """ THIS FUNCTION JUST RETURNS THE ARGUMENTS SENT FROM THE SERVER IF FINDS THE COMMAND SEARCHING FOR """
     while True:
         # NOTE - APPLICATION WILL BE STUCK HERE IF NO RESPONSE FROM SERVER
         server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
@@ -22,12 +22,13 @@ def handle_server_feedback(cmd_searching_for) -> tuple:
             cmd, args = extract_cmd(server_feedback)
             print(f"'handle_server_feedback()': cmd={cmd} args={args}")
             if cmd == cmd_searching_for:
-                return args    
+                return args
             else:
                 print("This item is not meant for here!") # Could return False. THis happens if two server feedbacks get muddled togetrher
                 raise ValueError    # Could append back to 'GlobalItems.interpreted_server_feedback_buffer' BUT THIS NEEDS TO BE A QUEUE
 
 
+# -=--=-=-=--= WINDOW
 class MainWindow:
     def __init__(self):
         self.main_win = QMainWindow()
@@ -71,81 +72,62 @@ class MainWindow:
         send_to = self.current_chat_opened_with[0]
         GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{message}', '{send_to}')")
 
-        handling_chat_submission = True
-        while handling_chat_submission:
-            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
-            if server_feedback:
-                cmd, args = extract_cmd(server_feedback)
-                print(f"cmd={cmd} args={args}")
-                if cmd == IC_CMD:
-                    handling_chat_submission = False
-                    self.select_enter_chats_btn(self.current_chat_opened_with) # Refresh the chats messages - Terrible method
+        args = handle_server_feedback(IC_CMD)
+        if args:
+            self.select_enter_chats_btn(self.current_chat_opened_with) # Refresh the chats messages - Terrible method
+        else:
+            print("Failed to send message??")
 
 
     def select_enter_chats_btn(self, contact_details):
-        # Open chat
+        """ Open chat """
         IC_CMD = "GetMessagesHistory"
         contacts_id, contacts_username = contact_details
-        print(f"Opening chat with {contact_details}")
-
         GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]({contacts_id})")
-        while True:
-            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
-            if server_feedback:
-                cmd, args = extract_cmd(server_feedback)
-                if cmd == IC_CMD:
-                    print(f"cmd={cmd} args={args}")
-                    self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chat)
-                    
-                    self.current_chat_opened_with = contact_details
+      
+        # Handle server feedback
+        # CLEAR CHAT-LOG
+        for msg in reversed(range(self.ui.verticalLayout_chat_history.count())):
+            self.ui.verticalLayout_chat_history.itemAt(msg).widget().setParent(None)
+        # CLEAR SEND-MESSAGE BAR
+        self.ui.enter_message_entry.setText("")
+        
+        args = handle_server_feedback(IC_CMD)
+    
+        self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chat)
+        self.current_chat_opened_with = contact_details
 
-                    # CLEAR CHAT-LOG
-                    for msg in reversed(range(self.ui.verticalLayout_chat_history.count())):
-                        self.ui.verticalLayout_chat_history.itemAt(msg).widget().setParent(None)
-                    # CLEAR SEND-MESSAGE BAR
-                    self.ui.enter_message_entry.setText("")
-
-                    # POPULATE CHAT-LOG
-                    chats = args
-                    #chats = chats[::-1] # Reverse order
-                    for msg_details in chats:
-                        _, msg_text, msg_sender, msg_receiver = msg_details
-
-                        msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
-                        self.ui.verticalLayout_chat_history.addWidget(msg)
-
-                else:
-                    print(f"Got wrong command here? {cmd} EXPECTED {IC_CMD}")
-                break
+        # POPULATE CHAT-LOG
+        for msg_details in args:
+            _, msg_text, msg_sender, msg_receiver = msg_details
+            msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
+            self.ui.verticalLayout_chat_history.addWidget(msg)
 
 
 
     # REFRESH CHATS
     def submit_refresh_chats_btn(self):
         """ GETS CONTACTS CHATS """
-        IC_CMD = "GetChats"
 
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]()")
-        while True:
-            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
-            if server_feedback:
-                cmd, args = extract_cmd(server_feedback)
-                print(f"cmd={cmd} args={args}")
-                if cmd == IC_CMD:
-                    if args[0] != False:
-                        # CLEAR Contact list - (this prevents duplicates from coming up in the GUI)
-                        for contact_chat in reversed(range(self.ui.verticalLayout.count())):
-                            self.ui.verticalLayout.itemAt(contact_chat).widget().setParent(None)
+        IC_CMD = "GetSavedContactsChats"
+        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]()")        
+        args = handle_server_feedback(IC_CMD)
 
-                        for contact_details in args:
-                            contact_id, contact_name = contact_details
+        # populate the "chat with contact" button(s) to chats list 
+        if args[0] != False:
+            # CLEAR Contact list - (this prevents duplicates from coming up in the GUI)
+            for contact_chat in reversed(range(self.ui.verticalLayout.count())):
+                self.ui.verticalLayout.itemAt(contact_chat).widget().setParent(None)
 
-                            chat_ = QPushButton(contact_name, parent=self.ui.contacts_scrollAreaWidgetContents)
-                            chat_.clicked.connect(lambda state, x=(contact_id, contact_name): self.select_enter_chats_btn(x))
-                            self.ui.verticalLayout.addWidget(chat_)
-                        break
-                print(f"Something went wrong: \n {__doc__}" )
-                break
+            for contact_details in args:
+                contact_id, contact_name = contact_details
+                chat_ = QPushButton(contact_name, parent=self.ui.contacts_scrollAreaWidgetContents)
+                chat_.clicked.connect(lambda state, x=(contact_id, contact_name): self.select_enter_chats_btn(x))
+                self.ui.verticalLayout.addWidget(chat_)
+        else:
+            print("This account has no contacts")
+
+
     # CHATS LIST items
     def submit_newchat_btn(self):
         self.ui.Home_InnerSW.setCurrentWidget(self.ui.Search_Contact)
@@ -163,27 +145,15 @@ class MainWindow:
         print(f"Searching for matching {search_for}")
         GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{search_for}')")
 
-        server_feedback = handle_server_feedback(cmd_searching_for=f"{IC_CMD}")
-        # NOTE: For now can only accept one result (one account) - CHECK DB MANAGER TO FIX THIS IF HAVE TIME
-
+        server_feedback = handle_server_feedback(cmd_searching_for=IC_CMD)
+     
         top_five_matches = []
         if server_feedback[0]:
             # GET PAIRS
             top_five_matches = server_feedback
-
-            # for i in range(int(len(server_feedback)/2)):
-            #     pivot = i*2
-            #     contacts_id_and_username = (server_feedback[pivot], server_feedback[pivot+1])
-            #     user_id, username = contacts_id_and_username
-            #     top_five_matches.append((user_id, username))
-
         else:
             print("No contacts found")
             
-
-
-        #top_five_matches = ["dummy" + str(i) for i in range(5)]
-
         # Clear previous searches
         for item in reversed(range(self.ui.verticalLayout_2.count())):
             self.ui.verticalLayout_2.itemAt(item).widget().setParent(None)
@@ -194,41 +164,18 @@ class MainWindow:
             add_contact_.clicked.connect(lambda _, x=contact_id_and_name: self.sumbit_new_chat_with_contact(x))
             self.ui.verticalLayout_2.addWidget(add_contact_)
 
-            # start_chat = QPushButton("Start Chat with " + contact_id_and_name[1], parent=self.ui.search_results_scroll_area)
-            # start_chat.clicked.connect(lambda _, x=contact_id_and_name: self.submit_start_new_chat(x))
-            #self.ui.verticalLayout_2.addWidget(start_chat)
-
-
-
-    def submit_start_new_chat(self, contact_id_and_name):
-        IC_CMD = "BeginChat"
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{contact_id_and_name[0]}')")
-        # Start chat with someone
-
-
 
     def sumbit_new_chat_with_contact(self, contact_id_and_name):
         IC_CMD = "SaveContact"
         print(f"Adding new contact {contact_id_and_name}")
         GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{contact_id_and_name[0]}')")
         
-        while True:
-            # NOTE - APPLICATION WILL BE STUCK HERE IF NO RESPONSE FROM SERVER
-            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
-            if server_feedback:
-                cmd, args = extract_cmd(server_feedback)
-                print(f"cmd={cmd} args={args}")
-                if cmd == IC_CMD:
-                    if args[0] == True:
-                        self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats_List)
-                        break
-
-                    else:
-                        print("Failed to save account???")
-                        break
-
-
-
+        args = handle_server_feedback(cmd_searching_for=IC_CMD)
+        if args[0] == True:
+            self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats_List)
+        else:
+            print("Failed to save account???")
+        
 
     # Login & Register Widget
     def setup_login_sw(self):
@@ -251,54 +198,36 @@ class MainWindow:
         self.ui.LoginAndRegister_InnerSW.setCurrentWidget(self.ui.Register)
 
     def submit_login_btn(self):
-        GlobalItems.send_server_msg_buffer.append(f"#IC[login]('{self.ui.log_username_entry.text()}', '{self.ui.log_password_entry.text()}')")
+        IC_CMD = "login"
 
-        while True:
-            # NOTE - APPLICATION WILL BE STUCK HERE IF NO RESPONSE FROM SERVER
-            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
-            if server_feedback:
-                cmd, args = extract_cmd(server_feedback)
-                print(f"cmd={cmd} args={args}")
-                if cmd == "login":
-                    #IC[login]("Username or Password is incorrect", "False") - Example
-                    feedback_str, proceed = args
-                    if not proceed:
-                        self.ui.server_feeback_label.setText(feedback_str)
-                        self.ui.log_username_entry.setText("")
-                        self.ui.log_password_entry.setText("")
-                    else:
-                        # Load window for home page
-                        self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
-                    break
-                       
-                else:
-                    print("THIS IS NOT MEANT FOR HERE! - If error below throws, don't pop() anymore before checking that message is meant for here")
-                    raise ValueError
-                
-        
+        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{self.ui.log_username_entry.text()}', '{self.ui.log_password_entry.text()}')")
+        args = handle_server_feedback(cmd_searching_for=f"{IC_CMD}")
+
+        feedback_str, proceed = args
+        if not proceed:
+            self.ui.server_feeback_label.setText(feedback_str)
+            self.ui.log_username_entry.setText("")
+            self.ui.log_password_entry.setText("")
+        else:
+            # Load window for home page
+            self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
+               
+   
 
     def submit_register_btn(self):
+        IC_CMD = "register"
         print(f"CREATE ACCOUNT:     email: {self.ui.reg_email_entry.text()} username: {self.ui.reg_username_entry.text()} password: {self.ui.reg_password_entry.text()}")
-        GlobalItems.send_server_msg_buffer.append(f"#IC[register]('{self.ui.reg_email_entry.text()}', '{self.ui.reg_username_entry.text()}', '{self.ui.reg_password_entry.text()}')")
+        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{self.ui.reg_email_entry.text()}', '{self.ui.reg_username_entry.text()}', '{self.ui.reg_password_entry.text()}')")
+        args = handle_server_feedback(cmd_searching_for=f"{IC_CMD}")
 
-        while True:
-            server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
-            if server_feedback:
-                cmd, args = extract_cmd(server_feedback)
-                if cmd == "register":
-                    feedback_str, proceed = args
-                    if proceed:
-                        self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
-                    else:
-                        self.ui.server_feeback_label.setText(feedback_str)
-                        self.ui.reg_email_entry.setText("")
-                        self.ui.reg_username_entry.setText("")
-                        self.ui.reg_password_entry.setText("")
-
-                    break
-                else:
-                    print("THIS IS NOT MEANT FOR HERE! - If error below throws, don't pop() anymore before checking that message is meant for here")
-                    raise ValueError
+        feedback_str, proceed = args
+        if proceed:
+            self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
+        else:
+            self.ui.server_feeback_label.setText(feedback_str)
+            self.ui.reg_email_entry.setText("")
+            self.ui.reg_username_entry.setText("")
+            self.ui.reg_password_entry.setText("")
 
     def show(self):
         self.main_win.show()

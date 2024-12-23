@@ -150,7 +150,7 @@ def handle_client(conn, addr):
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"])
                         
 
-                elif cmd == "GetChats": #GetContacts
+                elif cmd == "GetSavedContactsChats": #GetContacts
                     results = ContactsManger.handle_get_all_chats_for_contact(clients_account.id)
                     if results:
                         accounts = [ContactsManger.handle_search_contact(id=x[2])[0] for x in results]

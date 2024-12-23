@@ -115,16 +115,13 @@ def server_handle():
                 elif "RefreshChats" in request_out:
                     handle_refresh_chats(request_out)
 
-                elif "BeginChat" in request_out:
-                    handle_start_chat(request_out)
-
                 elif "SearchContact" in request_out:
                     handle_search_contacts(request_out)
 
                 elif "SaveContact" in request_out:
                     handle_save_contact(request_out)
 
-                elif "GetChats" in request_out:
+                elif "GetSavedContactsChats" in request_out:
                     handle_get_chats(request_out) # MAKE BUTTON TO GET THIS REQUEST GOING
 
                 elif "GetMessagesHistory" in request_out:
@@ -177,16 +174,16 @@ def handle_refresh_chats(request_out) -> None:
 
 
 def handle_get_chats(request_out) -> None:
-    """IC = GetChats"""
+    """IC = GetSavedContactsChats"""
     client.send(request_out.encode("utf-8"))
     received = handle_recv(client, SERVER_LOCATION)
     if received:
         cmd, args = received    
-        if cmd == "GetChats":
+        if cmd == "GetSavedContactsChats":
             if args[0] != False:
-                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetChats]({args})")
+                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetSavedContactsChats]({args})")
             else:
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[GetChats](False)")
+                GlobalItems.interpreted_server_feedback_buffer.append("#IC[GetSavedContactsChats](False)")
 
 
 
@@ -225,13 +222,7 @@ def handle_search_contacts(request_out) -> None:
                 # Did NOT find results
 
 
-def handle_start_chat(request_out) -> None:
-    """IC = BeginChat"""
-    # forget
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
-    if received:
-        pass
+
 
 
 def establish_p2p_private_connection():

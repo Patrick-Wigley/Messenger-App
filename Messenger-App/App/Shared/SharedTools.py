@@ -34,7 +34,7 @@ def handle_send(conn, addr, cmd=None, args=None, request_out=None) -> bool:
     """
     try:
         if not request_out:
-            send = f"#IC[{cmd}] ({args})" # send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
+            send = f"#IC[{cmd}] ({args})"       # send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
         else:
             send = request_out
         print(f"SENDING: {send}")
@@ -67,8 +67,6 @@ def extract_cmd(data) -> tuple:
     # """
     cmd = data[data.find("[")+1 : data.find("]")]  
     
-
-
     last_closed_bracket_index = len(data)-(data[::-1].find(")"))-1
     args_tuple = data[data.find("(") : last_closed_bracket_index+1]
     
