@@ -6,6 +6,12 @@ import os
 import GlobalItems
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from client.UDPCalling import SoundHandling
+from client.UDPCalling.Send import begin_send_audio_data
+from client.UDPCalling.Receive import begin_recv_audio_data
+
+
 from Shared.SharedTools import (pairing_function, 
                            extract_cmd,
                            handle_send,
@@ -22,6 +28,7 @@ with open("Shared\\details", "r") as file:
     else:
         IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
         SERVER_IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
+
 
 PORT = 5055
 ADDR = (IP, PORT)
@@ -154,6 +161,8 @@ def handle_call_person(request_out) -> None:
             print("Person cannot be called right now")
         else:
             print(f"CAN CALL - calling IPV4: {args}")
+            begin_send_audio_data(args[0])
+            begin_recv_audio_data(args[0])
 
 
 
