@@ -108,9 +108,9 @@ def server_handle():
                     handle_exit()
                     break
 
-                elif "call" in request_out:
+                elif "CallPerson" in request_out:
                     # Needs arg of person sending to & this persons id
-                    session_id = pairing_function(_, _)
+                    handle_call_person(request_out)
 
                 elif "RefreshChats" in request_out:
                     handle_refresh_chats(request_out)
@@ -144,6 +144,19 @@ def server_handle():
 # -=-= POST-LOGIN FUNCTIONS =-=- #
 # These takes parameters & works in-conjuction with 'server_handle()'"
 # These functions send message and then wait for the appropriate response to handle it (SYNCHRONOUS)
+def handle_call_person(request_out) -> None:
+    """IC = CallPerson"""
+    client.send(request_out.encode("utf-8"))
+    received = handle_recv(client, SERVER_LOCATION)
+    if received:
+        cmd, args = received    # Shall receive OTHER PERSONS IPV4 to dial in
+        if args[0] == False:
+            print("Person cannot be called right now")
+        else:
+            print(f"CAN CALL - calling IPV4: {args}")
+
+
+
 def handle_send_message(request_out) -> None:
     """IC = SendMessage"""
     client.send(request_out.encode("utf-8"))
@@ -229,6 +242,9 @@ def establish_p2p_private_connection():
     """ From client need to request to p2p connect to a client. Server should pair other person if they wish to communicate 
        """
 
+
+def handle_call(ipv4_to_dial_into):
+    pass
 
 
 # Begin 

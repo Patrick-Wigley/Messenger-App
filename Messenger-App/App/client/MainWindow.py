@@ -78,6 +78,13 @@ class MainWindow:
         else:
             print("Failed to send message??")
 
+    def select_call_person(self, contact_details):
+        """contact_details= (ID, Name)"""
+        
+        # Continue here
+        IC_CMD = "CallPerson"
+        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{contact_details[0]}')")
+
 
     def select_enter_chats_btn(self, contact_details):
         """ Open chat """
@@ -122,8 +129,12 @@ class MainWindow:
             for contact_details in args:
                 contact_id, contact_name = contact_details
                 chat_ = QPushButton(contact_name, parent=self.ui.contacts_scrollAreaWidgetContents)
-                chat_.clicked.connect(lambda state, x=(contact_id, contact_name): self.select_enter_chats_btn(x))
+                chat_.clicked.connect(lambda _, x=(contact_id, contact_name): self.select_enter_chats_btn(x))
+                call_ = QPushButton(f"Call - {contact_name}", parent=self.ui.contacts_scrollAreaWidgetContents)
+                call_.clicked.connect(lambda _, x=(contact_id, contact_name): self.select_call_person(x))
+
                 self.ui.verticalLayout.addWidget(chat_)
+                self.ui.verticalLayout.addWidget(call_)
         else:
             print("This account has no contacts")
 
@@ -181,6 +192,14 @@ class MainWindow:
     def setup_login_sw(self):
         # Set the default widget - (login)
         self.ui.LoginAndRegister_InnerSW.setCurrentWidget(self.ui.Login)
+
+        # Cache
+        with open("client/cache.txt", "r") as cached_login:
+            data = cached_login.read()
+            username, password = str(data).split(",")
+            self.ui.log_username_entry.setText(username)
+            self.ui.log_password_entry.setText(password)
+
 
         # Setup buttons
         # Modes buttons

@@ -1,0 +1,8 @@
+Potential issue which would be fixed in next iterations:
+
+PHONE CALL
+- Person1 queries database for Person2's IPV4 logged in at (which is Computer A). 
+
+- BUT, If Person2 has logged off and Person3 has logged onto Computer A, Person1 will now call Person3
+
+- Fix would be to have the server look for the person being called and inform them, which they can then accept. (THIS ENSURES CALLING THE CORRECT PERSON)

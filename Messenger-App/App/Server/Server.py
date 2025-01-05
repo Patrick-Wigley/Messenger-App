@@ -42,6 +42,8 @@ INTERNAL_COMMANDS = ["login", "exit", "call"]
 
 # Before establish the p2p, currently will store a sessionID for each pending call
 call_sessions = []
+# (ClientID, IPV4)
+current_ipv4s_in_use = []
 
 # -------- Functions --------
 
@@ -98,7 +100,10 @@ def handle_client(conn, addr):
     clients_account = handle_clients_login(conn, addr)
     if clients_account:
         print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
-
+        print(f"this clients ID is {clients_account.id}")
+        clients_ipv4_location_details = (clients_account.id, addr) 
+        current_ipv4s_in_use.append(clients_ipv4_location_details)
+        
         while True:
             received = handle_recv(conn, addr)
             if received:
@@ -110,18 +115,30 @@ def handle_client(conn, addr):
                     print(f"Closing connection with {addr}")
                     break
 
-                elif cmd == "call":
+                elif cmd == "CallPerson":
                     # NOTE - Should determine session by looking at two peoples ID or groups ID
                     # args = [sessionID]
                     # SESSIONID SHOULD BE DENOTED USING THE 'pairing function' IN 'Ap_Tools.py'
-                    session_id = args[0]
-                    if session_id in call_sessions:
-                        # Person is accepting call
-                        call_sessions.remove(session_id)
-                    else:
-                        # Person began calling someone 
-                        call_sessions.append(session_id)
-                    establish_p2p_call(session_id)
+                    requested_clients_ipv4 = False
+                    for client_and_ipv4 in current_ipv4s_in_use:
+                        if str(args[0]) == str(client_and_ipv4[0]):
+                            requested_clients_ipv4 = client_and_ipv4[1]
+              
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4)    
+                    
+                    #establish_p2p_call()
+
+
+                    # pairing_function(session_id)
+                    # session_id = args[0]
+                    # if session_id in call_sessions:
+                    #     # Person is accepting call
+                    #     call_sessions.remove(session_id)
+                    # else:
+                    #     # Person began calling someone 
+                    #     call_sessions.append(session_id)
+
+
                 
                 elif cmd == "SendMsgToLiveChat":
                     pass
@@ -166,17 +183,8 @@ def handle_client(conn, addr):
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=results)
                 else:
                     print("Received unkwown cmd - Is this implemented yet?")
-
+                    break
                
-
-
-                # Could add this but won't be able to find the time.. (Going to just make a live chat room for two clients)
-                # if cmd == "addContact":
-                #     # args (other username, _)
-                #     # Find other person, store friendship in db
-                #     users = (clients_account.username, args[0])
-                #     ContactsManger.handleSendRequest(senderID=clients_account.id, receiverID=args[0])
-
                 if cmd == "acceptContact":
                     pass
                     
@@ -185,7 +193,10 @@ def handle_client(conn, addr):
                 print(f"Received unknown data? \n-Connection: {addr} \n-Data: {received}")
                 break
     else:
-        print("Twat this connection off, they're malicious as a mf ")
+        print(f"Client at {addr} Failure to login")
+    
+    # Post session clean-up
+    current_ipv4s_in_use.remove(clients_ipv4_location_details)
 
 
 def handle_incoming_connections():
@@ -206,6 +217,8 @@ def handle_incoming_connections():
 def establish_p2p_call(session):
     """ Function establishes and handles UDP p2p connection between two clients for transmitting auditory data """
     
+
+
 
 #  --------
 
