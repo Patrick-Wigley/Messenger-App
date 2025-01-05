@@ -20,8 +20,8 @@ def setup_networking(addr=None):
    return server
 
 
-def begin_recv_audio_data(ip):
-   addr = (ip, 5006) #random.randint(5077, 5099))
+def begin_recv_audio_data(my_ip):
+   addr = (my_ip, 5005) #random.randint(5077, 5099))
    server = setup_networking(addr)
    setup_pyaudio_thread()
 

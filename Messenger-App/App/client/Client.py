@@ -162,7 +162,9 @@ def handle_call_person(request_out) -> None:
         else:
             print(f"CAN CALL - calling IPV4: {args}")
             begin_send_audio_data(args[0])
-            begin_recv_audio_data(args[0])
+          
+            print(f"MY IP IS: {IP}")
+            begin_recv_audio_data(IP)
 
 
 

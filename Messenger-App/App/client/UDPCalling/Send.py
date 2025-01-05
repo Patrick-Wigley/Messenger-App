@@ -16,21 +16,23 @@ connected = True
 
 
 def setup_networking(addr=None):
-    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    print(f"Setting up UDP SENDING: {addr}")
-    try:
-        server.bind(addr)
-        print(f"Sending from: {addr}")
-    except socket.error as e:
-        print(f"Couldnt set up UDP SENDING \nERROR IS '{e}'")
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    return client
+    #print(f"Setting up UDP SENDING: {addr}")
+    #try:
+        #client.bind(addr)
+     #   print(f"Sending from: {addr}")
+    #except socket.error as e:
+     #   print(f"\nCouldnt set up UDP SENDING \nERROR IS '{e}'")
        
-    return server
 
 
 def client_handle(ip):
    
     addr = (ip, 5005) #random.randint(5056, 5076))
     client = setup_networking(addr)   
+    send_to_addr = (ip, 5005)
+    print(f"SENDING AUDIO UDP DATA TO {send_to_addr}")
 
     while connected:    
         if not UDPCalling_GlobalItems.frames_buffer_in.empty():
