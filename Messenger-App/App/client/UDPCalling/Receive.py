@@ -23,11 +23,14 @@ def setup_networking(addr=None):
 def begin_recv_audio_data(my_ip):
    addr = (my_ip, 5005) #random.randint(5077, 5099))
    server = setup_networking(addr)
-   setup_pyaudio_thread()
-
-   while True:
-      data, addr = server.recvfrom(65536) #4129 #2081
-      UDPCalling_GlobalItems.frames_buffer_out.put(data)
+#   setup_pyaudio_thread()
+   output_thread = threading.Thread(target=play_recording_realtime, args=([server]))
+   output_thread.start()
+   
+   if False:
+      while True:
+         data, addr = server.recvfrom(65536) #4129 #2081
+         UDPCalling_GlobalItems.frames_buffer_out.put(data)
 
 
 

@@ -9,9 +9,9 @@ import socket
 
 #import matplotlib.pyplot as plt 
 
-FRAMES_PER_BUFFER = 1024
-FORMAT = pya.paInt16
-CHANNELS = 2
+FRAMES_PER_BUFFER = 2048
+FORMAT = pya.paInt32
+CHANNELS = 1
 FRAMERATE = 44100
 p = pya.PyAudio()
 
@@ -19,7 +19,7 @@ def get_recording(duration=5):
     stream = p.open(format=FORMAT, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER,
                     input=True)
 
-    # Could do "while playing=True" and have another thread which waits for the user to click end recording - or something along those lines
+    # Could do "while outputting=True" and have another thread which waits for the user to click end inputting - or something along those lines
     # FIXED DURATION
     print("Recording")
     frames = []
@@ -64,41 +64,47 @@ def save_recording_into_file(recording_data):
     wf.writeframes(b''.join(frames))
     wf.close()
 
-
-recording = False
-def start_recording_realtime():
-    """ Runs in its own thread """
-    global recording
-    
-    stream = p.open(format=FORMAT, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER,
-                    input=True)
-  
-    print("Microphone is being captured")
-    recording = True
-    while recording:
-      UDPCalling_GlobalItems.frames_buffer_in.put(stream.read(FRAMES_PER_BUFFER))
-
-    print("Microphone capture has finished")
-
 def stop_recordings():
-    global recording
+    global inputting
     
-    while recording:
+    while inputting:
       try:
-        recording = False
+        inputting = False
       except threading.BrokenBarrierError as e:
          print(f"[Threading Error]: {e}")
 
 
-def play_recording_realtime():
-    stream = p.open(format=pya.paFloat32, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER, 
+inputting = False
+outputting = False
+def start_recording_realtime(sender_socket=None):
+    """ Runs in its own thread """
+    global inputting
+    
+    stream = p.open(format=FORMAT, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER,
+                    input=True, output=False)
+  
+    print("Microphone is being captured")
+    inputting = True
+    while inputting:
+      sender_socket.sendall(stream.read(FRAMES_PER_BUFFER))
+      #time.sleep(FRAMES_PER_BUFFER/FRAMERATE)
+      #UDPCalling_GlobalItems.frames_buffer_in.put(stream.read(FRAMES_PER_BUFFER))
+
+    print("Microphone capture has finished")
+
+
+
+def play_recording_realtime(listener_socket=None):
+    stream = p.open(format=FORMAT, channels=CHANNELS, rate=FRAMERATE, frames_per_buffer=FRAMES_PER_BUFFER, 
                     input=False, output=True)
 
-    playing = True
-    while playing:
-        if not UDPCalling_GlobalItems.frames_buffer_in.empty():
-          stream.write(UDPCalling_GlobalItems.frames_buffer_in.get())
-          time.sleep(1)
+    outputting = True
+    while outputting:
+        data, addr = listener_socket.recvfrom(FRAMES_PER_BUFFER*4)
+        stream.write(data)
+
+        #stream.write(UDPCalling_GlobalItems.frames_buffer_in.get())
+          
       
 
 if __name__ == "__main__":
