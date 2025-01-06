@@ -1,4 +1,4 @@
-
+from hashlib import sha256
 
 
 def list_to_str_with_commas(list_) -> str:
@@ -24,7 +24,7 @@ def extract_cmd(data) -> tuple:
 
 
 def hash_data(data) -> str:
-    return data # NOTE HASH THIS
+    return sha256(data.encode("utf-8")).hexdigest() # NOTE HASH THIS
 
 
 

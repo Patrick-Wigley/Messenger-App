@@ -6,9 +6,11 @@
 
 import socket
 import threading
+import smtplib
 import sys
 import os
 from typing import Union
+
 
 from dbModelManager import AccountManager, Account, ContactsManger, MessageManager
 
@@ -62,6 +64,14 @@ def handle_key_share(conn, addr) -> tuple:
                 return pub, priv
     
 
+# def send_email():
+#     #context = ssl.create_default_context()
+#     sender_email = "patrickwigley2@gmail.com"
+#     recv_email=
+#     with smtplib.SMTP("smtp.gmail.com", 587) as server:
+#         server.login()
+
+
 def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
     """
     Params:
@@ -89,15 +99,9 @@ def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
                     return clients_account
                 else:
                     handle_send(conn, addr, cmd=cmd, args=["FAIL"], pub_key=pub_priv_keys[0])
-            
+            elif cmd == "ForgottenLogin":
+               pass
 
-            # elif cmd == "register" and len(args) == 3:
-            #     clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
-            #     if clients_account:
-            #         handle_send(conn, addr, cmd="register", args=["SUCCESS"])
-            #         return clients_account
-            #     else:
-            #         handle_send(conn, addr, cmd="register", args=["FAIL"])
 
             else:
                 print(f"Something went wrong - received: {result}")

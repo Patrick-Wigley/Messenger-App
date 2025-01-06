@@ -57,7 +57,8 @@ def login_handle(pub_priv_keys) -> bool:
                         # stores login for when logging in again
                         with open("cache.txt", "w") as cached_login:
                             # NOTE: FINISH USING JSON
-                            cached_login.write(f"{inputted_account_details}")
+                            _, args = extract_cmd(inputted_account_details)
+                            cached_login.write(f"{args}")
                             cached_login.close()
                         GlobalItems.logged_in = True
                         

@@ -76,6 +76,7 @@ class AccountManager:
                 print("User attempted to login to account that's LOCKED")
                 # NOTE - Need to sent SMTP to users email to unlock account - (go through a change password)
                 return None
+            
             # NOTE: NEED TO HASH THESE!
             if user_input["password"] != __acc_instance.password_hashed:
                 db.update_account_login_attempt(id=__acc_instance.id, login_attempts=__acc_instance.login_attempts+1)
