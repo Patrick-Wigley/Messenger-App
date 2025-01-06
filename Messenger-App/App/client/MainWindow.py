@@ -12,15 +12,16 @@ from PyQt6.QtCore import *
 from GUI.UI_Login_Register import Ui_MainWindow
 
 # -=--=-=-=--= TOOLS 
-def handle_server_feedback(cmd_searching_for) -> tuple:
+def handle_server_feedback(cmd_searching_for, verbose=False) -> tuple:
     """ THIS FUNCTION JUST RETURNS THE ARGUMENTS SENT FROM THE SERVER IF FINDS THE COMMAND SEARCHING FOR """
     while True:
         # NOTE - APPLICATION WILL BE STUCK HERE IF NO RESPONSE FROM SERVER
         server_feedback = None if len(GlobalItems.interpreted_server_feedback_buffer) == 0 else GlobalItems.interpreted_server_feedback_buffer.pop()
         if server_feedback:
-            print(server_feedback)
             cmd, args = extract_cmd(server_feedback)
-            print(f"'handle_server_feedback()': cmd={cmd} args={args}")
+            if verbose:
+                print(server_feedback)
+                print(f"'handle_server_feedback()': cmd={cmd} args={args}")
             if cmd == cmd_searching_for:
                 return args
             else:

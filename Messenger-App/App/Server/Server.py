@@ -15,9 +15,10 @@ from dbModelManager import AccountManager, Account, ContactsManger, MessageManag
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (extract_cmd, 
                            list_to_str_with_commas,
+                           pairing_function,
                            handle_recv,
                            handle_send,
-                           pairing_function)
+                           gen_keys, convert_to_pkcs)
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -40,16 +41,28 @@ server.bind(ADDR)
 # Kinda redundant 
 INTERNAL_COMMANDS = ["login", "exit", "call"]
 
-# Before establish the p2p, currently will store a sessionID for each pending call
-call_sessions = []
 # (ClientID, IPV4)
 current_ipv4s_in_use = []
 
 # -------- Functions --------
 
+def handle_key_share(conn, addr) -> tuple:
+    while True:
+        result = handle_recv(conn, addr)
+        if result:
+            cmd, args = result
+            if cmd == "GetKeys":
+                pub, priv = gen_keys()
+                print(pub)
+                print(priv)
+                # Save key into pkcs for loading on client side
+                pub_pkcs, priv_pkcs = convert_to_pkcs(pub, priv)
 
+                handle_send(conn, addr, cmd=cmd, args=[pub_pkcs, priv_pkcs])
+                return pub, priv
+    
 
-def handle_clients_login(conn, addr) -> Union[Account, None]:
+def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
     """
     Params:
         - conn [Socket] 
@@ -63,7 +76,7 @@ def handle_clients_login(conn, addr) -> Union[Account, None]:
     """
     while True:
         print(f"Waiting for login details at: {addr}")
-        result = handle_recv(conn, addr)
+        result = handle_recv(conn, addr, priv_key=pub_priv_keys[1])
         if result:
             cmd, args = result
             if (cmd == "login" and len(args) == 2) or (cmd == "register" and len(args) == 3):  
@@ -72,10 +85,10 @@ def handle_clients_login(conn, addr) -> Union[Account, None]:
                 else:
                     clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
                 if clients_account:                
-                    handle_send(conn, addr, cmd=cmd, args=["SUCCESS"])
+                    handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
                     return clients_account
                 else:
-                    handle_send(conn, addr, cmd=cmd, args=["FAIL"])
+                    handle_send(conn, addr, cmd=cmd, args=["FAIL"], pub_key=pub_priv_keys[0])
             
 
             # elif cmd == "register" and len(args) == 3:
@@ -96,8 +109,11 @@ def handle_clients_login(conn, addr) -> Union[Account, None]:
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
     
+    # Handle key-share here
+    pub_key, priv_key = handle_key_share(conn, addr)
+
     # Handle login here
-    clients_account = handle_clients_login(conn, addr)
+    clients_account = handle_clients_login(conn, addr, (pub_key, priv_key))
     if clients_account:
         print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
         print(f"this clients ID is {clients_account.id}")
@@ -105,7 +121,7 @@ def handle_client(conn, addr):
         current_ipv4s_in_use.append(clients_ipv4_location_details)
         
         while True:
-            received = handle_recv(conn, addr)
+            received = handle_recv(conn, addr, priv_key=priv_key, verbose=True)
             if received:
                 cmd, args = received
                 print(f"Recieved command: {cmd}, args: {args}")
@@ -124,63 +140,50 @@ def handle_client(conn, addr):
                         if str(args[0]) == str(client_and_ipv4[0]):
                             requested_clients_ipv4 = client_and_ipv4[1]
               
-                    handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4)    
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4, pub_key=pub_key)    
                     
-                    #establish_p2p_call()
-
-
-                    # pairing_function(session_id)
-                    # session_id = args[0]
-                    # if session_id in call_sessions:
-                    #     # Person is accepting call
-                    #     call_sessions.remove(session_id)
-                    # else:
-                    #     # Person began calling someone 
-                    #     call_sessions.append(session_id)
-
-
                 
                 elif cmd == "SendMsgToLiveChat":
                     pass
                 
                 elif cmd == "SendMessage":
                     result = MessageManager.handle_send_message(message=args[0], sender_id=clients_account.id, receiver_id=args[1])
-                    print(result)
-                    handle_send(conn=conn, addr=addr, cmd=cmd, args=result)
+                    
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=result, pub_key=pub_key)
                     
                 elif cmd == "SearchContact":
                     result = ContactsManger.handle_search_contact(username=args[0])
-                    print(result)
                     if result:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=[
                             (clients_account[0], clients_account[1]) for clients_account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
-                            ])
+                            ], 
+                            pub_key=pub_key)
                 
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=['FAIL'])
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=['FAIL'], pub_key=pub_key)
 
                 elif cmd == "SaveContact":
                     add_contact_result = ContactsManger.handleAddContactRelationship(thisID=clients_account.id, otherID=args[0], paired_value=pairing_function(int(clients_account.id), int(args[0])))
                     if add_contact_result:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=True)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=True, pub_key=pub_key)
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"])
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"], pub_key=pub_key)
                         
 
                 elif cmd == "GetSavedContactsChats": #GetContacts
                     results = ContactsManger.handle_get_all_chats_for_contact(clients_account.id)
                     if results:
                         accounts = [ContactsManger.handle_search_contact(id=x[2])[0] for x in results]
-                        
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=accounts)
+
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=accounts, pub_key=pub_key)
+
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=pub_key)
 
                 elif cmd == "GetMessagesHistory":
                     results = MessageManager.handle_get_chat_instance_messages(sender_id=clients_account.id, receiver_id=args[0])
-                    print(results)
                     
-                    handle_send(conn=conn, addr=addr, cmd=cmd, args=results)
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=results, pub_key=pub_key)
                 else:
                     print("Received unkwown cmd - Is this implemented yet?")
                     break

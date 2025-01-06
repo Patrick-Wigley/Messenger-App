@@ -1,29 +1,49 @@
 from typing import Union
 import socket
-import hashlib
-import os
+from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
+
+DEBUG = False
+
 
 # DATA TRANSMISSION 
-def handle_recv(conn, addr) -> Union[tuple, None]:
+def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False) -> Union[tuple, None]:
     """ 
     Params:
         conn (Socket):
         addr (_RetAddress):
     Returns:
         tuple: ('cmd', (args' On SUCCESSFUL Transmission 
-
     """
+    
     try:
-        data = conn.recv(1024).decode("utf-8") 
+        if priv_key:
+            encrypted_data = conn.recv(recv_amount)
+            data = decrypt(encrypted_data, priv_key).decode("utf-8")
+            if verbose:
+                print(f"Encrypted data received = {encrypted_data} \Decrypted data = {data}")
+
+        else:
+            data = conn.recv(recv_amount).decode("utf-8")
+            if verbose:
+                print(f"Got {data}")
+        
+        
         return extract_cmd(data)
     except socket.error as e:
         print(f"[ERROR]: IN {handle_recv.__name__}\n{e}")
         return None
 
-def extract_args_from_list(args) -> str:
-    return ''.join(args)
+def gen_keys():
+    return get_pub_priv_key()
 
-def handle_send(conn, addr, cmd=None, args=None, request_out=None) -> bool:
+def convert_to_pkcs(pub, priv):
+    pub_pkcs = pub.save_pkcs1("DER")
+    priv_pkcs = priv.save_pkcs1("DER")
+    return (pub_pkcs, priv_pkcs)
+def convert_from_pkcs(pub_pkcs, priv_pkcs):
+    return convert_to_key_from_pkcs(pub_pkcs, priv_pkcs)
+
+def handle_send(conn, addr=None, cmd=None, args=None, request_out=None, verbose=False, pub_key="") -> bool:
     """ 
     Takes command want to send & optionally any arguments
     Params:
@@ -34,12 +54,26 @@ def handle_send(conn, addr, cmd=None, args=None, request_out=None) -> bool:
     """
     try:
         if not request_out:
-            send = f"#IC[{cmd}] ({args})"       # send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
+            data = f"#IC[{cmd}] ({args})"       # send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
         else:
-            send = request_out
-        print(f"SENDING: {send}")
-        conn.send(send.encode("utf-8"))
+            data = request_out
+        
+        if verbose:
+            print(f"Sending: \n{data}")
+        if pub_key:
+            data = encrypt(data, pub_key)
+            if verbose:
+                print(data)
+
+
+        if isinstance(data, str):
+            conn.send(data.encode("utf-8"))
+        elif isinstance(data, bytes): 
+            # Most Likely has been ecrypted
+            conn.send(data)
+            
         return True
+    
     except socket.error as e:
         print(f"[ERROR]: IN {handle_send.__name__}\n{e}")
         return False
@@ -69,9 +103,10 @@ def extract_cmd(data) -> tuple:
     
     last_closed_bracket_index = len(data)-(data[::-1].find(")"))-1
     args_tuple = data[data.find("(") : last_closed_bracket_index+1]
-    
+
     args_evaluation = eval(args_tuple)
-    print(f"Evalutaed string is: {args_evaluation} - type is {type(args_evaluation)}")
+    if DEBUG:
+        print(f"Evalutaed string is: {args_evaluation} - type is {type(args_evaluation)}")
     
     if isinstance(args_evaluation, tuple):
         args = list(args_evaluation)
@@ -79,7 +114,9 @@ def extract_cmd(data) -> tuple:
         args = [args_evaluation]
     else:
         args = args_evaluation
-    print(f"final args state: {args}")
+
+    if DEBUG:
+        print(f"final args state: {args}")
 
     # args_str = data[data.find("(")+1 : last_closed_bracket_index] # snip out first ( and last ) in string
 
@@ -127,3 +164,6 @@ if __name__ == "__main__":
     #print(pairing_function(4, 100))
    
     #print(list_to_str_with_commas(['1','2','3','4']))
+
+    #def extract_args_from_list(args) -> str:
+#     return ''.join(args)

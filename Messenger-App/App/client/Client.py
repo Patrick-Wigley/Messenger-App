@@ -5,6 +5,7 @@ import os
 
 import GlobalItems
 
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from client.UDPCalling import SoundHandling
@@ -16,7 +17,8 @@ from Shared.SharedTools import (pairing_function,
                            extract_cmd,
                            handle_send,
                            handle_recv,
-                           list_to_str_with_commas)
+                           list_to_str_with_commas,
+                           convert_from_pkcs)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -34,17 +36,19 @@ PORT = 5055
 ADDR = (IP, PORT)
 SERVER_LOCATION = (SERVER_IP, 5055)
 
+encryption_keys = ("", "")
+
 kill_all_non_daemon = False
 
-def login_handle() -> bool:
+def login_handle(pub_priv_keys) -> bool:
     """ Ran before main socket communications occurs, handles login """
     while not GlobalItems.logged_in:
         inputted_account_details = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
         if inputted_account_details:
             #cmd, args = extract_cmd(inputted_account_details)
-            handle_send(client, SERVER_LOCATION, request_out=inputted_account_details)
+            handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=pub_priv_keys[0])
             
-            received = handle_recv(client, SERVER_LOCATION)
+            received = handle_recv(client, SERVER_LOCATION, priv_key=pub_priv_keys[1])
             if received:
                 cmd, args = received
                 if cmd == "login" or cmd == "register":
@@ -79,6 +83,16 @@ def login_handle() -> bool:
                 #     elif args[0] == "FAIL":
                 #         GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](Username_or_Email_is_taken, False)")
 
+def encryption_key_handle() -> tuple:
+    IC_CMD_KEY_SHARE = "#IC[GetKeys]()"
+    handle_send(client, SERVER_LOCATION, request_out=IC_CMD_KEY_SHARE)
+    
+    received = handle_recv(client, SERVER_LOCATION, recv_amount=8096)
+    if received:
+        cmd, args = received 
+        pub, priv = convert_from_pkcs(args[0], args[1])
+        return pub, priv
+        
 
 
 def handle_exit():
@@ -99,8 +113,12 @@ def server_handle():
         print(e)
         sys.exit()
 
+    # Initial KEY SHARE   
+    pub_key, priv_key = encryption_key_handle()
+    pub_priv_keys = (pub_key, priv_key)
+
     # logged_in is a global here in 'client.py'
-    login_handle()
+    login_handle(pub_priv_keys)
     print("Logged in" if GlobalItems.logged_in else "NOT LOGGED IN")
 
     if GlobalItems.logged_in:
@@ -117,25 +135,25 @@ def server_handle():
 
                 elif "CallPerson" in request_out:
                     # Needs arg of person sending to & this persons id
-                    handle_call_person(request_out)
+                    handle_call_person(request_out, pub_priv_keys)
 
                 elif "RefreshChats" in request_out:
-                    handle_refresh_chats(request_out)
+                    handle_refresh_chats(request_out, pub_priv_keys)
 
                 elif "SearchContact" in request_out:
-                    handle_search_contacts(request_out)
+                    handle_search_contacts(request_out, pub_priv_keys)
 
                 elif "SaveContact" in request_out:
-                    handle_save_contact(request_out)
+                    handle_save_contact(request_out, pub_priv_keys)
 
                 elif "GetSavedContactsChats" in request_out:
-                    handle_get_chats(request_out) # MAKE BUTTON TO GET THIS REQUEST GOING
+                    handle_get_chats(request_out, pub_priv_keys) # MAKE BUTTON TO GET THIS REQUEST GOING
 
                 elif "GetMessagesHistory" in request_out:
-                    handle_get_chats_history(request_out)
+                    handle_get_chats_history(request_out, pub_priv_keys)
 
                 elif "SendMessage" in request_out:
-                    handle_send_message(request_out)
+                    handle_send_message(request_out, pub_priv_keys)
 
 
                 # Should be "if request_out contains 'message' - (This should become a command with args as the person send to and the message being sent) "
@@ -151,10 +169,10 @@ def server_handle():
 # -=-= POST-LOGIN FUNCTIONS =-=- #
 # These takes parameters & works in-conjuction with 'server_handle()'"
 # These functions send message and then wait for the appropriate response to handle it (SYNCHRONOUS)
-def handle_call_person(request_out) -> None:
+def handle_call_person(request_out, keys) -> None:
     """IC = CallPerson"""
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0], verbose=True)
+    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
     if received:
         cmd, args = received    # Shall receive OTHER PERSONS IPV4 to dial in
         if args[0] == False:
@@ -168,39 +186,41 @@ def handle_call_person(request_out) -> None:
 
 
 
-def handle_send_message(request_out) -> None:
+def handle_send_message(request_out, keys) -> None:
     """IC = SendMessage"""
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0], verbose=True)
+    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1], verbose=True)
     if received:
         cmd, args = received    
         GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SendMessage]({args})")
 
 
-def handle_get_chats_history(request_out) -> None:
+def handle_get_chats_history(request_out, keys) -> None:
     """IC = GetMessagesHistory"""
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0], verbose=True)
+    received = handle_recv(conn=client, addr=SERVER_LOCATION, priv_key=keys[1], verbose=True)
     if received:
         cmd, args = received    
         GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetMessagesHistory]({args})")
 
 
 
-def handle_refresh_chats(request_out) -> None:
+def handle_refresh_chats(request_out, keys) -> None:
     """IC = RefreshChats"""
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
+    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
     if received:
         cmd, args = received    
         print(cmd, " and args: ", args)
         
 
 
-def handle_get_chats(request_out) -> None:
+def handle_get_chats(request_out, keys) -> None:
     """IC = GetSavedContactsChats"""
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
+    
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
+    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
+
     if received:
         cmd, args = received    
         if cmd == "GetSavedContactsChats":
@@ -211,10 +231,10 @@ def handle_get_chats(request_out) -> None:
 
 
 
-def handle_save_contact(request_out) -> None:
+def handle_save_contact(request_out, keys) -> None:
     """IC = SaveContact"""
-    client.send(request_out.encode("utf-8"))  
-    received = handle_recv(client, SERVER_LOCATION)
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0]) 
+    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
     if received:
         cmd, args = received
         
@@ -227,12 +247,12 @@ def handle_save_contact(request_out) -> None:
                 GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](False)")
 
 
-def handle_search_contacts(request_out) -> None:
+def handle_search_contacts(request_out, keys) -> None:
     """IC = SearchContact"""
     # Sending straight away as already formatted = make function for error handling these.
-    print(f"Sending request: Searching for contact - {request_out}")
-    client.send(request_out.encode("utf-8"))
-    received = handle_recv(client, SERVER_LOCATION)
+    
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
+    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
     if received:
         cmd, args = received
         if cmd == "SearchContact":
