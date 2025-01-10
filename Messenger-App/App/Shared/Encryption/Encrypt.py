@@ -7,11 +7,16 @@ from Shared.Encryption.KeyGen import (produce_private_key,
 
 # Utilised by client
 
-def encrypt(data, pub_key):
-    encrypted_data = rsa.encrypt(data.encode("utf-8"), pub_key)
+def encrypt(data: bytes|str, pub_key: rsa.PublicKey):
+    if isinstance(data, str):
+        data = data.encode("utf-8")
+    elif isinstance(data, bytes):
+        encrypted_data = rsa.encrypt(data, pub_key)
+    else:
+        raise TypeError
     return encrypted_data
 
-def decrypt(data, priv_key) -> bytes: 
+def decrypt(data: bytes|str, priv_key: rsa.PrivateKey) -> bytes: 
     decrypted_data = rsa.decrypt(data, priv_key)
     return decrypted_data
 
@@ -25,11 +30,9 @@ def convert_to_key_from_pkcs(pub_pkcs, priv_pkcs):
 
 
 if __name__ == "__main__":
-    # NOTE - Definitley not finished.
-
     # Generate keys
-    #private = produce_private_key()
-    #public = produce_public_key(private)
+    # private = produce_private_key()
+    # public = produce_public_key(private)
 
     public, private = get_pub_priv_key()
 
@@ -37,7 +40,7 @@ if __name__ == "__main__":
     #### Would send the private key ONCE to client
 
     # Encrypt data
-    data = "hello fart"
+    data = "hello Messenger Application!"
 
     enc_data = encrypt(data, public)
     print(f"Encrypted data = {enc_data}")

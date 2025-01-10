@@ -1,18 +1,15 @@
+# THIRD PARTY
 import socket
 import threading
 import sys
 import os
 
+# MESSENGER APP MODULES
 import GlobalItems
-
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
 from client.UDPCalling import SoundHandling
 from client.UDPCalling.Send import begin_send_audio_data
 from client.UDPCalling.Receive import begin_recv_audio_data
-
-
 from Shared.SharedTools import (pairing_function, 
                            extract_cmd,
                            handle_send,
@@ -20,8 +17,8 @@ from Shared.SharedTools import (pairing_function,
                            list_to_str_with_commas,
                            convert_from_pkcs)
 
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
+# Get stored IPV4 of servers location
 with open("Shared\\details", "r") as file:
     data = file.read()
     if data:
@@ -31,12 +28,10 @@ with open("Shared\\details", "r") as file:
         IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
         SERVER_IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
 
-
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 PORT = 5055
 ADDR = (IP, PORT)
 SERVER_LOCATION = (SERVER_IP, 5055)
-
-encryption_keys = ("", "")
 
 kill_all_non_daemon = False
 
@@ -45,7 +40,6 @@ def login_handle(pub_priv_keys) -> bool:
     while not GlobalItems.logged_in:
         inputted_account_details = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
         if inputted_account_details:
-            #cmd, args = extract_cmd(inputted_account_details)
             handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=pub_priv_keys[0])
             
             received = handle_recv(client, SERVER_LOCATION, priv_key=pub_priv_keys[1])
@@ -62,7 +56,7 @@ def login_handle(pub_priv_keys) -> bool:
                             cached_login.close()
                         GlobalItems.logged_in = True
                         
-                        print(f"Succesfully: {cmd}")
+                        print(f"Success on {cmd}")
                         # Let window know
                         if cmd == "login":
                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('_', True)")
@@ -76,14 +70,7 @@ def login_handle(pub_priv_keys) -> bool:
                 else:
                     print(f"Received incorrect data from server? {received}")
 
-                
-                # elif cmd == "register":
-                #     print(args)
-                #     if args[0] == "SUCCESS":
-                #         GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](_, True)")
-                #     elif args[0] == "FAIL":
-                #         GlobalItems.interpreted_server_feedback_buffer.append("#IC[register](Username_or_Email_is_taken, False)")
-
+             
 def encryption_key_handle() -> tuple:
     IC_CMD_KEY_SHARE = "#IC[GetKeys]()"
     handle_send(client, SERVER_LOCATION, request_out=IC_CMD_KEY_SHARE)

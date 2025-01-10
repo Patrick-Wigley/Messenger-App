@@ -52,7 +52,7 @@ def handle_key_share(conn, addr) -> tuple:
     while True:
         result = handle_recv(conn, addr)
         if result:
-            cmd, args = result
+            cmd, _ = result
             if cmd == "GetKeys":
                 pub, priv = gen_keys()
                 print(pub)
@@ -100,8 +100,7 @@ def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
                 else:
                     handle_send(conn, addr, cmd=cmd, args=["FAIL"], pub_key=pub_priv_keys[0])
             elif cmd == "ForgottenLogin":
-               pass
-
+               pass # SMTP SERVER THEN SENDS RESET THING
 
             else:
                 print(f"Something went wrong - received: {result}")
@@ -145,7 +144,6 @@ def handle_client(conn, addr):
                             requested_clients_ipv4 = client_and_ipv4[1]
               
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4, pub_key=pub_key)    
-                    
                 
                 elif cmd == "SendMsgToLiveChat":
                     pass
@@ -180,7 +178,6 @@ def handle_client(conn, addr):
                         accounts = [ContactsManger.handle_search_contact(id=x[2])[0] for x in results]
 
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=accounts, pub_key=pub_key)
-
                     else:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=pub_key)
 

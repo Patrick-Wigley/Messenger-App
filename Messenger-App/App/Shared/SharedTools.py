@@ -1,5 +1,6 @@
 from typing import Union
 import socket
+import sys
 from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
 
 DEBUG = False
@@ -58,6 +59,13 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out=None, verbose=
         else:
             data = request_out
         
+        # Data segmenting:
+        2048
+        data_size = sys.getsizeof(data.encode("utf-8"))
+        if data_size > 1024:
+            pass
+
+
         if verbose:
             print(f"Sending: \n{data}")
         if pub_key:
