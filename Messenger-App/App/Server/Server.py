@@ -16,11 +16,12 @@ from dbModelManager import AccountManager, Account, ContactsManger, MessageManag
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (extract_cmd, 
-                           list_to_str_with_commas,
+                           #list_to_str_with_commas,
                            pairing_function,
                            handle_recv,
                            handle_send,
-                           gen_keys, convert_to_pkcs)
+                           gen_keys, handle_pubkey_share# convert_to_pkcs, convert_from_pkcs
+                           )
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -48,21 +49,53 @@ current_ipv4s_in_use = []
 
 # -------- Functions --------
 
-def handle_key_share(conn, addr) -> tuple:
-    while True:
-        result = handle_recv(conn, addr)
-        if result:
-            cmd, _ = result
-            if cmd == "GetKeys":
-                pub, priv = gen_keys()
-                print(pub)
-                print(priv)
-                # Save key into pkcs for loading on client side
-                pub_pkcs, priv_pkcs = convert_to_pkcs(pub, priv)
-
-                handle_send(conn, addr, cmd=cmd, args=[pub_pkcs, priv_pkcs])
-                return pub, priv
+def handle_key_share(conn, addr, sessions_public_key) -> tuple:
+    # NOTE DONE THIS HORRIFICALLY WRONG - Do not share private keys, when sending message, 
+    # get public key from client and encrypt data to send with that clients_public_key. 
+    # than send it and only that client can decrypt it using their private key.
     
+    # Why not here just get the public key of each other.
+
+
+    clients_public_key = ""
+
+    sent_key_to_client = False
+    got_key_from_client = False
+
+    while True:
+        if not sent_key_to_client or not got_key_from_client:
+            result = handle_recv(conn, addr)
+        
+            if result:
+                cmd, args = result
+                if cmd == "SendingPubKey":
+                    got_key_from_client = True
+                    clients_public_key_pkcs = args[0]
+                    clients_public_key = convert_from_pkcs(clients_public_key_pkcs)
+
+                elif cmd == "RequestingPubKey":
+                    # Save key into pkcs for loading on client side
+                    handle_send(conn, addr, cmd="SendingPubKey", args=convert_to_pkcs(sessions_public_key))
+                    
+        else:
+            # The key sharing session is SUCCESSFULLY finished
+            return clients_public_key
+
+
+
+def handle_get_client_pub_key(conn, addr):
+    handle_send(conn, cmd="GetPubKey")
+    received = handle_recv(conn, addr, recv_amount=8096)
+    if received:
+        cmd, args = received
+        if cmd == "GetPubKey":
+            pub_key_str = args[0]
+            pub_key = convert_from_pkcs(pub_key_str)
+            return pub_key
+        
+    return False
+
+
 
 # def send_email():
 #     #context = ssl.create_default_context()
@@ -81,8 +114,8 @@ def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
         - populated clients_account instance [Account] - On SUCCESSFUL Authentication
         - None [None] - On FAILED Authentication
     Does:
-    - Utilises AccountManager class to handle login authentication, clients_account locking and the rest
-    - Only accepts 'IC[login] (username, password)' here.
+        - Utilises AccountManager class to handle login authentication, clients_account locking and the rest
+        - Only accepts 'IC[login] (username, password)' here.
     """
     while True:
         print(f"Waiting for login details at: {addr}")
@@ -109,14 +142,23 @@ def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
             return None
 
 
+
+
+
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
-    
-    # Handle key-share here
-    pub_key, priv_key = handle_key_share(conn, addr)
+    clients_ipv4_location_details = None
 
+    # Sessions Key Generation 
+    # Generate Server Private & Public keys for this client session
+    pub_key, priv_key = gen_keys() 
+    #
+    clients_pub_key = handle_pubkey_share(conn, addr, pub_key, verbose=True)
+    
+    
     # Handle login here
-    clients_account = handle_clients_login(conn, addr, (pub_key, priv_key))
+    clients_account = handle_clients_login(conn, addr, (clients_pub_key, priv_key))
+
     if clients_account:
         print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
         print(f"this clients ID is {clients_account.id}")
@@ -143,7 +185,7 @@ def handle_client(conn, addr):
                         if str(args[0]) == str(client_and_ipv4[0]):
                             requested_clients_ipv4 = client_and_ipv4[1]
               
-                    handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4, pub_key=pub_key)    
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4, pub_key=clients_pub_key)    
                 
                 elif cmd == "SendMsgToLiveChat":
                     pass
@@ -151,7 +193,7 @@ def handle_client(conn, addr):
                 elif cmd == "SendMessage":
                     result = MessageManager.handle_send_message(message=args[0], sender_id=clients_account.id, receiver_id=args[1])
                     
-                    handle_send(conn=conn, addr=addr, cmd=cmd, args=result, pub_key=pub_key)
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=result, pub_key=clients_pub_key)
                     
                 elif cmd == "SearchContact":
                     result = ContactsManger.handle_search_contact(username=args[0])
@@ -159,17 +201,17 @@ def handle_client(conn, addr):
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=[
                             (clients_account[0], clients_account[1]) for clients_account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
                             ], 
-                            pub_key=pub_key)
+                            pub_key=clients_pub_key)
                 
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=['FAIL'], pub_key=pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=['FAIL'], pub_key=clients_pub_key)
 
                 elif cmd == "SaveContact":
                     add_contact_result = ContactsManger.handleAddContactRelationship(thisID=clients_account.id, otherID=args[0], paired_value=pairing_function(int(clients_account.id), int(args[0])))
                     if add_contact_result:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=True, pub_key=pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=True, pub_key=clients_pub_key)
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"], pub_key=pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"], pub_key=clients_pub_key)
                         
 
                 elif cmd == "GetSavedContactsChats": #GetContacts
@@ -177,14 +219,14 @@ def handle_client(conn, addr):
                     if results:
                         accounts = [ContactsManger.handle_search_contact(id=x[2])[0] for x in results]
 
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=accounts, pub_key=pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=accounts, pub_key=clients_pub_key)
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=clients_pub_key)
 
                 elif cmd == "GetMessagesHistory":
                     results = MessageManager.handle_get_chat_instance_messages(sender_id=clients_account.id, receiver_id=args[0])
                     
-                    handle_send(conn=conn, addr=addr, cmd=cmd, args=results, pub_key=pub_key)
+                    handle_send(conn=conn, addr=addr, cmd=cmd, args=results, pub_key=clients_pub_key)
                 else:
                     print("Received unkwown cmd - Is this implemented yet?")
                     break

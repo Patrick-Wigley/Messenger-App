@@ -3,6 +3,7 @@ import socket
 import threading
 import sys
 import os
+import rsa
 
 # MESSENGER APP MODULES
 import GlobalItems
@@ -14,8 +15,9 @@ from Shared.SharedTools import (pairing_function,
                            extract_cmd,
                            handle_send,
                            handle_recv,
-                           list_to_str_with_commas,
-                           convert_from_pkcs)
+                           #convert_from_pkcs, convert_to_pkcs,
+                           handle_pubkey_share,
+                           gen_keys)
 
 
 # Get stored IPV4 of servers location
@@ -32,17 +34,21 @@ client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 PORT = 5055
 ADDR = (IP, PORT)
 SERVER_LOCATION = (SERVER_IP, 5055)
+servers_session_pub_key = None
+private_key = None
 
 kill_all_non_daemon = False
 
-def login_handle(pub_priv_keys) -> bool:
+
+
+def login_handle() -> bool:
     """ Ran before main socket communications occurs, handles login """
     while not GlobalItems.logged_in:
         inputted_account_details = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
         if inputted_account_details:
-            handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=pub_priv_keys[0])
+            handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=servers_session_pub_key, verbose=True)
             
-            received = handle_recv(client, SERVER_LOCATION, priv_key=pub_priv_keys[1])
+            received = handle_recv(client, SERVER_LOCATION, priv_key=private_key)
             if received:
                 cmd, args = received
                 if cmd == "login" or cmd == "register":
@@ -70,8 +76,44 @@ def login_handle(pub_priv_keys) -> bool:
                 else:
                     print(f"Received incorrect data from server? {received}")
 
-             
-def encryption_key_handle() -> tuple:
+
+
+
+def encryption_key_share_handle(my_pub_key: rsa.PublicKey) -> bool:
+    pub_key = "" #handle_get_server_pub_key()
+    while True:
+        # GET PUBLIC key of SERVER
+        handle_send(client, SERVER_LOCATION, cmd="SendingPubKey", args=convert_to_pkcs(my_pub_key))
+
+        cmd, args = handle_recv(client, SERVER_LOCATION, decrypt=False)
+        if cmd == "GotPublicKey":
+            # Send MY GENEATED PUBLIC to participant - Formats to PKCS
+            #handle_send(client, SERVER_LOCATION, cmd="SendPubKey", args=convert_to_pkcs(my_pub_key))
+
+            # SUCCESS - Can proceed; return servers public key
+            return pub_key 
+
+        else:
+            print(f"GOT WRONG DATA?! {encryption_key_share_handle.__name__} - \nGOT: {cmd} - {args}")
+            # FAIL
+
+
+def handle_get_server_pub_key():
+    handle_send(client, cmd="GetPubKey")
+    received = handle_recv(client, SERVER_LOCATION, recv_amount=8096)
+    if received:
+        cmd, args = received
+        if cmd == "SendPubKey":
+            pub_key_str = args[0]
+            pub_key = convert_from_pkcs(pub_key_str)
+            return pub_key
+        
+    return False
+
+
+
+   
+def encryption_key_handlea() -> tuple:
     IC_CMD_KEY_SHARE = "#IC[GetKeys]()"
     handle_send(client, SERVER_LOCATION, request_out=IC_CMD_KEY_SHARE)
     
@@ -80,20 +122,13 @@ def encryption_key_handle() -> tuple:
         cmd, args = received 
         pub, priv = convert_from_pkcs(args[0], args[1])
         return pub, priv
-        
 
 
 def handle_exit():
     print(f"Exiting thread: {threading.get_ident()}!")
     # Need to tell server
     handle_send(client, SERVER_LOCATION, "exit")
-
-
-def server_handle():
-    """ All server interacts, communications will be handled here 
-        This is ran in its own thread - while it is daemon, it needs to be READ-ONLY. Cannot ask for inputs, no interupts and etc. """
-    global kill_all_non_daemon
-    
+def handle_connect():
     try:
         client.connect(SERVER_LOCATION)
         print(f"Successfully Connected to server at {SERVER_LOCATION}")
@@ -101,14 +136,29 @@ def server_handle():
         print(e)
         sys.exit()
 
-    # Initial KEY SHARE   
-    pub_key, priv_key = encryption_key_handle()
-    pub_priv_keys = (pub_key, priv_key)
 
+def server_handle():
+    """ All server interacts, communications will be handled here 
+        This is ran in its own thread - while it is daemon, it needs to be READ-ONLY. Cannot ask for inputs, no interupts and etc. """
+    global kill_all_non_daemon, private_key, servers_session_pub_key
+    
+    # CONNECT TO SERVER
+    handle_connect()
+
+    # KEY GEN & SHARE
+    # Sessions Key Generation 
+    pub_key, private_key = gen_keys()
+    # Share Generated Public Key & Recieve Servers Public Key FOR THIS SESSION
+    servers_session_pub_key = handle_pubkey_share(client, SERVER_LOCATION, pub_key, verbose=True)
+    pub_priv_keys = [servers_session_pub_key, private_key]
+
+
+    # LOGIN
     # logged_in is a global here in 'client.py'
-    login_handle(pub_priv_keys)
+    login_handle()
     print("Logged in" if GlobalItems.logged_in else "NOT LOGGED IN")
 
+    # MAIN NETWORK LOOP FOR PROGRAM - Handles all ingoings & outgoings of commands & their respective data
     if GlobalItems.logged_in:
         while True:
             # Logic here is if buffer has something to send to server, will shoot it off & receive something back
@@ -245,7 +295,6 @@ def handle_search_contacts(request_out, keys) -> None:
         cmd, args = received
         if cmd == "SearchContact":
             print(f"Received: {args}")
-            print(f"list to string with commas: {list_to_str_with_commas(args)}")
             if "FAIL" not in args[0]:
                 # Found results
                 GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SearchContact]({args})")

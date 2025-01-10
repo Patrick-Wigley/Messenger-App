@@ -4,10 +4,10 @@ import sys
 from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
 
 DEBUG = False
-
+ENCODE_FORMAT = "utf-8"
 
 # DATA TRANSMISSION 
-def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False) -> Union[tuple, None]:
+def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decrypt_data=True) -> Union[tuple, None]:
     """ 
     Params:
         conn (Socket):
@@ -17,34 +17,31 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False) -> Uni
     """
     
     try:
-        if priv_key:
-            encrypted_data = conn.recv(recv_amount)
-            data = decrypt(encrypted_data, priv_key).decode("utf-8")
-            if verbose:
-                print(f"Encrypted data received = {encrypted_data} \Decrypted data = {data}")
+        # RECEIVING
+        received_data = conn.recv(recv_amount)
 
-        else:
-            data = conn.recv(recv_amount).decode("utf-8")
+        # DECRYPTING &&/|| DECODING TO STRING
+        if decrypt_data:
+            data_ready_to_use = decrypt(received_data, priv_key).decode(ENCODE_FORMAT)
             if verbose:
-                print(f"Got {data}")
+                print(f"Encrypted data received = {received_data} \Decrypted data = {data_ready_to_use}")
+        else:
+            # Not Decrypting
+            data_ready_to_use = received_data.decode(ENCODE_FORMAT)
+
         
-        
-        return extract_cmd(data)
+        # EXTRACTING COMMANDS & RETURNING
+        return extract_cmd(data_ready_to_use)
+    
     except socket.error as e:
         print(f"[ERROR]: IN {handle_recv.__name__}\n{e}")
         return None
 
-def gen_keys():
-    return get_pub_priv_key()
 
-def convert_to_pkcs(pub, priv):
-    pub_pkcs = pub.save_pkcs1("DER")
-    priv_pkcs = priv.save_pkcs1("DER")
-    return (pub_pkcs, priv_pkcs)
-def convert_from_pkcs(pub_pkcs, priv_pkcs):
-    return convert_to_key_from_pkcs(pub_pkcs, priv_pkcs)
 
-def handle_send(conn, addr=None, cmd=None, args=None, request_out=None, verbose=False, pub_key="") -> bool:
+
+
+def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=False, pub_key="", encrypt_data=True) -> bool:
     """ 
     Takes command want to send & optionally any arguments
     Params:
@@ -54,32 +51,36 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out=None, verbose=
         ards (List): 
     """
     try:
+
+        # FORMATTING
         if not request_out:
-            data = f"#IC[{cmd}] ({args})"       # send = f"#IC[{cmd}] ({list_to_str_with_commas(args)})"
+            data = f"#IC[{cmd}] ({args})"
         else:
             data = request_out
         
         # Data segmenting:
-        2048
-        data_size = sys.getsizeof(data.encode("utf-8"))
+        data_size = sys.getsizeof(data.encode(ENCODE_FORMAT))
         if data_size > 1024:
             pass
 
-
+        # DEBUGING
         if verbose:
-            print(f"Sending: \n{data}")
-        if pub_key:
-            data = encrypt(data, pub_key)
+            print(f"Sending: {data}")
+
+        # ENCODING
+        data_encoded = data.encode(ENCODE_FORMAT)
+
+        # ENCRYPTING
+        if encrypt_data and pub_key:
+            data_ready_to_send = encrypt(data_encoded, pub_key)
             if verbose:
-                print(data)
+                print(f"Sending As Encrypted: {data_ready_to_send}")
+        else:
+            # Not encrypting
+            data_ready_to_send = data_encoded
 
-
-        if isinstance(data, str):
-            conn.send(data.encode("utf-8"))
-        elif isinstance(data, bytes): 
-            # Most Likely has been ecrypted
-            conn.send(data)
-            
+        # SENDING
+        conn.send(data_ready_to_send)
         return True
     
     except socket.error as e:
@@ -87,35 +88,30 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out=None, verbose=
         return False
 
 
-def list_to_str_with_commas(list_) -> str:
-    if type(list_) is list or type(list_) is tuple:
-        ret = str(list_).replace("'", "")
-        ret = ret[1:len(ret)-1]
-        return ret
-    elif not list_:
-        return ""
-    else:
-        print(f"[ERROR] Unexpected type: got {type(list_)} - {list_}")
-        raise TypeError
+
     
 
-def extract_cmd(data) -> tuple:
+def extract_cmd(data: str) -> tuple:
     """
     Params:
-        data (str): #IC{command} (arg1, arg2, ...) 
+        data (str): "#IC[command] (arg1, arg2, ...)"
     Returns:
         tuple|None (("cmd" ["arg1", "arg2"])): 
         
     # """
+
+    # COMMAND
     cmd = data[data.find("[")+1 : data.find("]")]  
     
+    # ARGUMENTS
     last_closed_bracket_index = len(data)-(data[::-1].find(")"))-1
-    args_tuple = data[data.find("(") : last_closed_bracket_index+1]
+    args_tuple = data[data.find("(") : last_closed_bracket_index+1] # Extracts: (arg1, arg2, ...)
 
     args_evaluation = eval(args_tuple)
     if DEBUG:
-        print(f"Evalutaed string is: {args_evaluation} - type is {type(args_evaluation)}")
+        print(f"Evaluated string is: {args_evaluation} - type is {type(args_evaluation)}")
     
+    # Stores arguments in LIST 
     if isinstance(args_evaluation, tuple):
         args = list(args_evaluation)
     elif not isinstance(args_evaluation, list):
@@ -126,17 +122,85 @@ def extract_cmd(data) -> tuple:
     if DEBUG:
         print(f"final args state: {args}")
 
-    # args_str = data[data.find("(")+1 : last_closed_bracket_index] # snip out first ( and last ) in string
-
-    # args = [arg.replace(" ", "") for arg in args_str.split(",")]
-
     return (cmd, args)
 
 
 def check_md5():
     pass
 
-# OTHER 
+
+
+
+def gen_keys():
+    return get_pub_priv_key()
+
+def convert_to_pkcs(pub):
+    pub_pkcs = pub.save_pkcs1("DER")
+    return pub_pkcs
+def convert_from_pkcs(pub_pkcs: str):
+    return convert_to_key_from_pkcs(pub_pkcs)
+
+def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False):
+    others_public_key = ""
+
+    sent_key_to_client = False
+    if bi_directional_share:
+        sent_key_to_client = True
+    got_key_from_client = False
+
+    handle_send(conn, addr, cmd="RequestingPubKey", encrypt_data=False)
+
+    while True:
+        if not sent_key_to_client or not got_key_from_client:
+            result = handle_recv(conn, addr, decrypt_data=False)
+        
+            if result:
+                cmd, args = result
+                if cmd == "SendingPubKey":
+                    got_key_from_client = True
+                    clients_public_key_pkcs = args[0]
+                    others_public_key = convert_from_pkcs(clients_public_key_pkcs)
+                    if verbose:
+                        print(f"Got other participants public key - {others_public_key}")
+
+                elif cmd == "RequestingPubKey":
+                    sent_key_to_client = True
+                    # Save key into pkcs for loading on client side
+                    handle_send(conn, addr, cmd="SendingPubKey", args=convert_to_pkcs(sessions_generated_public_key))
+                    if verbose:
+                        print(f"Sending Public key to other participant - {sessions_generated_public_key}")
+
+
+                else:
+                    print(f"[{handle_pubkey_share.__name__}] GOT SOMETHING UNEXPECTED - {result}")
+        else:
+            # The key sharing session is SUCCESSFULLY finished
+            return others_public_key
+
+
+
+
+
+def send_request_for_pub_key(conn) -> str:
+    #conn.send("#IC[GetPubKey]()".encode(ENCODE_FORMAT))
+    handle_send(conn, cmd="GetPubKey", encrypt_data=False)
+
+    data_recv = handle_recv(conn, )
+    conn.recv(1024).encode(ENCODE_FORMAT)
+    if "GetPubKey" in data_recv:
+        return extract_cmd(data_recv)
+    else:
+        print("ERROR GETTING PUBLIC KEY")
+
+
+
+
+
+
+# #####~~~~#####~~~~#####~~~~##### OTHER - Not used #####~~~~#####~~~~#####~~~~#####
+
+
+
 
 def pairing_function(x, y):
     """
@@ -175,3 +239,22 @@ if __name__ == "__main__":
 
     #def extract_args_from_list(args) -> str:
 #     return ''.join(args)
+
+
+
+
+
+
+
+
+
+# def list_to_str_with_commas(list_: list|tuple) -> str:
+#     if type(list_) is list or type(list_) is tuple:
+#         ret = str(list_).replace("'", "")
+#         ret = ret[1:len(ret)-1]
+#         return ret
+#     elif not list_:
+#         return ""
+#     else:
+#         print(f"[ERROR] Unexpected type: got {type(list_)} - {list_}")
+#         raise TypeError

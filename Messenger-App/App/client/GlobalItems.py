@@ -1,5 +1,6 @@
 # Used throughout 'GUI.py' & 'Client.py'
 logged_in = False
+server_pub_key = ""
 
 send_server_msg_buffer = []
 recv_server_msg_buffer = []
