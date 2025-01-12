@@ -8,7 +8,8 @@ from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, conve
 # CONSTANTS
 DEBUG = False
 ENCODE_FORMAT = "utf-8"
-SEGMENT_CHUNK_SIZE = 100 # Bytes
+SEGMENT_CHUNK_SIZE = 214 # Bytes
+RECEIVE_AMOUNT = 214
 
 ################################
 
@@ -23,21 +24,55 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
     """
     
     try:
-        # RECEIVING
-        received_data = conn.recv(recv_amount)
+        seg_count = None
+        seg_count_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+        if "SegCount" in seg_count_data:
+            #print(f"GOT SEG COUNT DATA: {seg_count_data}")
+            _, args = extract_cmd(seg_count_data)
+            seg_count = args[0]
+            print(f"SEG COUNT EXPECTING IS: {seg_count}")
 
-        # DECRYPTING &&/|| DECODING TO STRING
-        if decrypt_data:
-            data_ready_to_use = decrypt(received_data, priv_key).decode(ENCODE_FORMAT)
-            if verbose:
-                print(f"Encrypted data received = {received_data} \Decrypted data = {data_ready_to_use}")
         else:
-            # Not Decrypting
-            data_ready_to_use = received_data.decode(ENCODE_FORMAT)
+            print("SOMETHING WENT WRONG!!")
 
-        
+        chunks_concatenated = ""
+        for _ in range(seg_count):
+            seg_len_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+            if "SegLen" in seg_len_data:
+                _, args = extract_cmd(seg_len_data)
+                receive_amount = args[0]
+            else:
+                print("SOMETHING WENT WRONG")
+
+            # RECEIVING data
+            received_data = conn.recv(receive_amount)
+
+
+            # DECRYPTING &&/|| DECODING TO STRING
+            if decrypt_data:
+                #print(f"decrypting: {received_data}")
+                data_chunk = decrypt(received_data, priv_key).decode(ENCODE_FORMAT)
+                if verbose:
+                    print(f"Encrypted data received = {received_data} \nDecrypted data = {data_chunk}")
+            else:
+                # Not Decrypting
+                data_chunk = received_data.decode(ENCODE_FORMAT)
+
+
+            chunk_id, chunk_size, chunks_actual_data  = extract_segment_data(data_chunk)
+            if verbose:
+                print(f"[DEBUG - SEGMENTING]: \n[ChunkID]: {chunk_id} & [ChunkSize]: {chunk_size} \n {chunks_actual_data} ")
+
+            chunks_concatenated += chunks_actual_data
+
+
+        if decrypt_data:
+            print(f"Decrypted following: {chunks_concatenated}")
+
+
+        #print(f"POST SEGEMENTATION - {chunks_concatenated}")
         # EXTRACTING COMMANDS & RETURNING
-        return extract_cmd(data_ready_to_use)
+        return extract_cmd(chunks_concatenated)
     
     except socket.error as e:
         print(f"[ERROR]: IN {handle_recv.__name__}\n{e}")
@@ -54,7 +89,6 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
         ards (List): 
     """
     try:
-
         # FORMATTING
         if not request_out:
             data = f"#IC[{cmd}] ({args})"
@@ -62,33 +96,57 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
             data = request_out
         
         # SEGMENTING
-        data_seg_list = segment_str(data)
+        #data_seg_list = segment_str(data)
+        #seg_count = SEGMENT_CHUNK_SIZE
 
+        data_len = len(data)
+        seg_len = 50
+        seg_count = math.ceil(data_len / seg_len) 
+
+        # PRE-SHARE DATA SEGMENT COUNT
+        conn.send(setup_chunk_to_send(f"#IC[SegCount]({seg_count})".encode("utf-8")))
 
         # DEBUGING
         if verbose:
             print(f"Sending: {data}")
 
-        # ENCODING
-        data_encoded = data.encode(ENCODE_FORMAT)
+        encrypted_chunks = []
+        for segment_id in range(seg_count):
+            
+            segment = get_segment(segment_id, data, segment_len=seg_len)
+            #print(f"segment: {segment}")
+
+            # ENCODING
+            data_encoded = segment.encode(ENCODE_FORMAT)
 
 
-        # ENCRYPTING
-        if encrypt_data and pub_key:
-            data_ready_to_send = encrypt(data_encoded, pub_key)
-            if verbose:
-                print(f"Sending As Encrypted: {data_ready_to_send}")
-        else:
-            # Not encrypting
-            data_ready_to_send = data_encoded
+            # ENCRYPTING
+            if encrypt_data and pub_key:
+                data_ready_to_send = encrypt(data_encoded, pub_key)
+                if verbose:
+                    print(f"Segment As Encrypted: {data_ready_to_send}")
+                encrypted_chunks.append(data_ready_to_send)
+            else:
+                # Not encrypting
+                data_ready_to_send = data_encoded
 
-        # SENDING
-        conn.send(data_ready_to_send)
+            # SENDING
+            conn.send(setup_chunk_to_send(f"#IC[SegLen]({len(data_ready_to_send)})".encode("utf-8")))
+            conn.send(data_ready_to_send)
+        
+        
+        print(f"#~#~ TRANSMITTING CMD = '{cmd}'~#~# \n Segments transmitted: {seg_count}\n Segment Len: {seg_len}\n\n Data Transmitted: {data} \n\n Data Encrypted (Actual Data Sent): {encrypted_chunks}\n\n")
         return True
     
     except socket.error as e:
         print(f"[ERROR]: IN {handle_send.__name__}\n{e}")
         return False
+
+def setup_chunk_to_send(data: bytes) -> bytes:
+    #RECEIVE_AMOUNT = 1024
+    data_in_fixed_chunk = data + ((RECEIVE_AMOUNT - len(data)) * b' ')
+    return data_in_fixed_chunk
+
 
 
 def extract_cmd(data: str) -> tuple:
@@ -123,6 +181,20 @@ def extract_cmd(data: str) -> tuple:
         print(f"final args state: {args}")
 
     return (cmd, args)
+
+
+def extract_segment_data(chunk: str) -> tuple:
+    chunk_info = chunk[chunk.find("<")+1 : chunk.find(">")]
+    chunk_id, chunk_size = chunk_info.replace(" ", "").split(",")
+    
+    chunk_data = chunk[chunk.find(">")+1 :]
+    chunks_actual_data = chunk_data[: int(chunk_size)]        # Removes extra empty data - which is used to make the chunk a fixed size 
+
+    #print(f"chunk_id: {chunk_id}, chunk_size: {chunk_size}")
+    #print(f"chunk_info: {chunks_actual_data}")
+
+    return (chunk_id, chunk_size, chunks_actual_data)
+
 
 ################################
 
@@ -179,18 +251,26 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
 
 # FRAME/PACKET SEGMENTING 
 def segment_str(msg: str) -> list:
-    """ Each segment is prefixed with CHUNK NUMBER - Notation is <Segmented ID>[Login](arg1, arg2)  """
-
+    """ Each segment is prefixed with CHUNK NUMBER - 
+    Notation is <Segmented ID>[Login](arg1, arg2)  - SPLITS STRING WITHOUT CONSIDERATION OF WHAT DATA IS BEING SPLIT e.g. '<1>[Logou' '<2>t](arg)' is possible
+    """
     msg_len = len(msg.encode("utf-8"))
     chunks_count = math.ceil(msg_len / SEGMENT_CHUNK_SIZE) 
 
     ret = []
     pivot = 1
     for chunk_index in range(chunks_count):
-        ret.append(f"<{chunk_index}>{msg[SEGMENT_CHUNK_SIZE*(pivot-1) : SEGMENT_CHUNK_SIZE*pivot]}")
+        data_chunk = msg[SEGMENT_CHUNK_SIZE*(pivot-1) : SEGMENT_CHUNK_SIZE*pivot]
+        ret.append(f"<{chunk_index}, {len(data_chunk)}>{data_chunk}")
         pivot += 1
 
     return ret
+
+def get_segment(seg_id, data:str, segment_len:int):
+    data_chunk = data[segment_len*(seg_id) : segment_len*(seg_id+1)]
+    #print(f"Data: {data}; \n\nSegment: {data_chunk}")
+    return f"<{seg_id}, {len(data_chunk)}>{data_chunk}"
+
 
 ################################
 

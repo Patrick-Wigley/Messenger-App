@@ -86,7 +86,7 @@ def handle_exit():
     print(f"Exiting thread: {threading.get_ident()}!")
     # Need to tell server
     handle_send(client, SERVER_LOCATION, "exit")
-    
+
 
 def server_handle():
     """ All server interacts, communications will be handled here 
@@ -186,8 +186,8 @@ def handle_send_message(request_out, keys) -> None:
 
 def handle_get_chats_history(request_out, keys) -> None:
     """IC = GetMessagesHistory"""
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0], verbose=True)
-    received = handle_recv(conn=client, addr=SERVER_LOCATION, priv_key=keys[1], verbose=True)
+    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
+    received = handle_recv(conn=client, addr=SERVER_LOCATION, priv_key=keys[1])
     if received:
         cmd, args = received    
         GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetMessagesHistory]({args})")
