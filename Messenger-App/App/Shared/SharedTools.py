@@ -1,10 +1,16 @@
 from typing import Union
 import socket
 import sys
+import math
 from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
 
+
+# CONSTANTS
 DEBUG = False
 ENCODE_FORMAT = "utf-8"
+SEGMENT_CHUNK_SIZE = 100 # Bytes
+
+################################
 
 # DATA TRANSMISSION 
 def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decrypt_data=True) -> Union[tuple, None]:
@@ -38,9 +44,6 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
         return None
 
 
-
-
-
 def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=False, pub_key="", encrypt_data=True) -> bool:
     """ 
     Takes command want to send & optionally any arguments
@@ -58,10 +61,9 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
         else:
             data = request_out
         
-        # Data segmenting:
-        data_size = sys.getsizeof(data.encode(ENCODE_FORMAT))
-        if data_size > 1024:
-            pass
+        # SEGMENTING
+        data_seg_list = segment_str(data)
+
 
         # DEBUGING
         if verbose:
@@ -69,6 +71,7 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
 
         # ENCODING
         data_encoded = data.encode(ENCODE_FORMAT)
+
 
         # ENCRYPTING
         if encrypt_data and pub_key:
@@ -87,9 +90,6 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
         print(f"[ERROR]: IN {handle_send.__name__}\n{e}")
         return False
 
-
-
-    
 
 def extract_cmd(data: str) -> tuple:
     """
@@ -124,13 +124,11 @@ def extract_cmd(data: str) -> tuple:
 
     return (cmd, args)
 
-
-def check_md5():
-    pass
+################################
 
 
 
-
+# KEY & ENCRYPTION HANDLING 
 def gen_keys():
     return get_pub_priv_key()
 
@@ -141,7 +139,7 @@ def convert_from_pkcs(pub_pkcs: str):
     return convert_to_key_from_pkcs(pub_pkcs)
 
 def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False):
-    others_public_key = ""
+    others_public_key = None
 
     sent_key_to_client = False
     if bi_directional_share:
@@ -177,23 +175,28 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
             # The key sharing session is SUCCESSFULLY finished
             return others_public_key
 
+################################
 
+# FRAME/PACKET SEGMENTING 
+def segment_str(msg: str) -> list:
+    """ Each segment is prefixed with CHUNK NUMBER - Notation is <Segmented ID>[Login](arg1, arg2)  """
 
+    msg_len = len(msg.encode("utf-8"))
+    chunks_count = math.ceil(msg_len / SEGMENT_CHUNK_SIZE) 
 
+    ret = []
+    pivot = 1
+    for chunk_index in range(chunks_count):
+        ret.append(f"<{chunk_index}>{msg[SEGMENT_CHUNK_SIZE*(pivot-1) : SEGMENT_CHUNK_SIZE*pivot]}")
+        pivot += 1
 
-def send_request_for_pub_key(conn) -> str:
-    #conn.send("#IC[GetPubKey]()".encode(ENCODE_FORMAT))
-    handle_send(conn, cmd="GetPubKey", encrypt_data=False)
+    return ret
 
-    data_recv = handle_recv(conn, )
-    conn.recv(1024).encode(ENCODE_FORMAT)
-    if "GetPubKey" in data_recv:
-        return extract_cmd(data_recv)
-    else:
-        print("ERROR GETTING PUBLIC KEY")
+################################
 
-
-
+# ERROR CHECKING
+def check_md5():
+    pass
 
 
 
@@ -242,6 +245,16 @@ if __name__ == "__main__":
 
 
 
+#def send_request_for_pub_key(conn) -> str:
+#     #conn.send("#IC[GetPubKey]()".encode(ENCODE_FORMAT))
+#     handle_send(conn, cmd="GetPubKey", encrypt_data=False)
+
+#     data_recv = handle_recv(conn, )
+#     conn.recv(1024).encode(ENCODE_FORMAT)
+#     if "GetPubKey" in data_recv:
+#         return extract_cmd(data_recv)
+#     else:
+#         print("ERROR GETTING PUBLIC KEY")
 
 
 

@@ -49,54 +49,6 @@ current_ipv4s_in_use = []
 
 # -------- Functions --------
 
-def handle_key_share(conn, addr, sessions_public_key) -> tuple:
-    # NOTE DONE THIS HORRIFICALLY WRONG - Do not share private keys, when sending message, 
-    # get public key from client and encrypt data to send with that clients_public_key. 
-    # than send it and only that client can decrypt it using their private key.
-    
-    # Why not here just get the public key of each other.
-
-
-    clients_public_key = ""
-
-    sent_key_to_client = False
-    got_key_from_client = False
-
-    while True:
-        if not sent_key_to_client or not got_key_from_client:
-            result = handle_recv(conn, addr)
-        
-            if result:
-                cmd, args = result
-                if cmd == "SendingPubKey":
-                    got_key_from_client = True
-                    clients_public_key_pkcs = args[0]
-                    clients_public_key = convert_from_pkcs(clients_public_key_pkcs)
-
-                elif cmd == "RequestingPubKey":
-                    # Save key into pkcs for loading on client side
-                    handle_send(conn, addr, cmd="SendingPubKey", args=convert_to_pkcs(sessions_public_key))
-                    
-        else:
-            # The key sharing session is SUCCESSFULLY finished
-            return clients_public_key
-
-
-
-def handle_get_client_pub_key(conn, addr):
-    handle_send(conn, cmd="GetPubKey")
-    received = handle_recv(conn, addr, recv_amount=8096)
-    if received:
-        cmd, args = received
-        if cmd == "GetPubKey":
-            pub_key_str = args[0]
-            pub_key = convert_from_pkcs(pub_key_str)
-            return pub_key
-        
-    return False
-
-
-
 # def send_email():
 #     #context = ssl.create_default_context()
 #     sender_email = "patrickwigley2@gmail.com"

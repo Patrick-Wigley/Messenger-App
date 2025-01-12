@@ -8,14 +8,12 @@ import rsa
 # MESSENGER APP MODULES
 import GlobalItems
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from client.UDPCalling import SoundHandling
 from client.UDPCalling.Send import begin_send_audio_data
 from client.UDPCalling.Receive import begin_recv_audio_data
-from Shared.SharedTools import (pairing_function, 
+from Shared.SharedTools import (
                            extract_cmd,
                            handle_send,
                            handle_recv,
-                           #convert_from_pkcs, convert_to_pkcs,
                            handle_pubkey_share,
                            gen_keys)
 
@@ -77,57 +75,6 @@ def login_handle() -> bool:
                     print(f"Received incorrect data from server? {received}")
 
 
-
-
-def encryption_key_share_handle(my_pub_key: rsa.PublicKey) -> bool:
-    pub_key = "" #handle_get_server_pub_key()
-    while True:
-        # GET PUBLIC key of SERVER
-        handle_send(client, SERVER_LOCATION, cmd="SendingPubKey", args=convert_to_pkcs(my_pub_key))
-
-        cmd, args = handle_recv(client, SERVER_LOCATION, decrypt=False)
-        if cmd == "GotPublicKey":
-            # Send MY GENEATED PUBLIC to participant - Formats to PKCS
-            #handle_send(client, SERVER_LOCATION, cmd="SendPubKey", args=convert_to_pkcs(my_pub_key))
-
-            # SUCCESS - Can proceed; return servers public key
-            return pub_key 
-
-        else:
-            print(f"GOT WRONG DATA?! {encryption_key_share_handle.__name__} - \nGOT: {cmd} - {args}")
-            # FAIL
-
-
-def handle_get_server_pub_key():
-    handle_send(client, cmd="GetPubKey")
-    received = handle_recv(client, SERVER_LOCATION, recv_amount=8096)
-    if received:
-        cmd, args = received
-        if cmd == "SendPubKey":
-            pub_key_str = args[0]
-            pub_key = convert_from_pkcs(pub_key_str)
-            return pub_key
-        
-    return False
-
-
-
-   
-def encryption_key_handlea() -> tuple:
-    IC_CMD_KEY_SHARE = "#IC[GetKeys]()"
-    handle_send(client, SERVER_LOCATION, request_out=IC_CMD_KEY_SHARE)
-    
-    received = handle_recv(client, SERVER_LOCATION, recv_amount=8096)
-    if received:
-        cmd, args = received 
-        pub, priv = convert_from_pkcs(args[0], args[1])
-        return pub, priv
-
-
-def handle_exit():
-    print(f"Exiting thread: {threading.get_ident()}!")
-    # Need to tell server
-    handle_send(client, SERVER_LOCATION, "exit")
 def handle_connect():
     try:
         client.connect(SERVER_LOCATION)
@@ -135,7 +82,11 @@ def handle_connect():
     except socket.error as e:
         print(e)
         sys.exit()
-
+def handle_exit():
+    print(f"Exiting thread: {threading.get_ident()}!")
+    # Need to tell server
+    handle_send(client, SERVER_LOCATION, "exit")
+    
 
 def server_handle():
     """ All server interacts, communications will be handled here 

@@ -10,7 +10,6 @@ import sys
 
 def encrypt(data: bytes, pub_key: rsa.PublicKey):
     if isinstance(data, bytes):
-        print(f"SIZE OF DATA {len(data)}")
         encrypted_data = rsa.encrypt(data, pub_key)
     else:
         raise TypeError # data EXPECTS TYPE bytes
@@ -23,10 +22,13 @@ def decrypt(data, priv_key) -> bytes:
 def get_pub_priv_key():
     return rsa.newkeys(2048)
 
-def convert_to_key_from_pkcs(pub_pkcs):
-    pub = rsa.key.PublicKey.load_pkcs1(pub_pkcs, format="DER")
-    #priv = rsa.key.PrivateKey.load_pkcs1(priv_pkcs, format="DER")
-    return pub #, priv
+def convert_to_key_from_pkcs(pub_pkcs: str):
+    try:
+        pub = rsa.key.PublicKey.load_pkcs1(pub_pkcs, format="DER")
+    except rsa.VerificationError as e:
+        print(f"ERROR CONVERTING TO PUBLIC KEY INSTANCE FROM PKCS: \n [VerificationError]: {e}")
+    
+    return pub
 
 
 if __name__ == "__main__":

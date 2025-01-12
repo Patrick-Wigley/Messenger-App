@@ -100,7 +100,7 @@ def play_recording_realtime(listener_socket=None):
 
     outputting = True
     while outputting:
-        data, addr = listener_socket.recvfrom(FRAMES_PER_BUFFER*4)
+        data, _ = listener_socket.recvfrom(FRAMES_PER_BUFFER*4)
         stream.write(data)
 
         #stream.write(UDPCalling_GlobalItems.frames_buffer_in.get())
