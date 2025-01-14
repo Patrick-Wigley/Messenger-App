@@ -1,7 +1,10 @@
-from typing import Union
+from typing import Union, Any
 import socket
 import sys
 import math
+import smtplib
+from email.mime.text import MIMEText
+
 from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
 
 
@@ -10,6 +13,48 @@ DEBUG = False
 ENCODE_FORMAT = "utf-8"
 SEGMENT_CHUNK_SIZE = 214 # Bytes
 RECEIVE_AMOUNT = 214
+
+# IC - CMDS
+class CMD:
+    """ CONSTANTS - ICs """
+
+    # SEGMENTATION Commands
+    SEGCOUNT = "SegCount" # Count of Segments going to be transmitted
+    SEGLEN = "SegLen" # Length of a Segment (Used during encryption block transmissions)
+
+    # AUTHENTICATION Commands
+    LOGIN = "login"
+    REGISTER = "register"
+
+    # REQUEST OUTS Commands 
+    CALLPERSON = "CallPerson"
+    REFRESHCHATS = "RefreshChats"
+    SEARCHCONTACT = "SearchContact"
+    SAVECONTACT = "SaveContact"
+    GETSAVECONTACTCHATS = "GetSavedContactsChats"
+    GETMESSAGEHISTORY = "GetMessagesHistory"
+    SENDMESSAGE = "SendMessage"
+    EXIT = "exit"
+
+    REQUEST_OUT_CMDS = [
+        CALLPERSON,
+        REFRESHCHATS, 
+        SEARCHCONTACT,
+        SAVECONTACT,
+        GETSAVECONTACTCHATS,
+        GETMESSAGEHISTORY,
+        SENDMESSAGE,
+    ]
+
+    # SERVER-SPECIFIC Commands
+    LIVECHAT = "LiveChat"
+    BROADCAST = "BroadCast"
+    SERVER_SPECIFIC = [
+        LIVECHAT,
+        BROADCAST      
+    ]
+
+
 
 ################################
 
@@ -26,7 +71,7 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
     try:
         seg_count = None
         seg_count_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
-        if "SegCount" in seg_count_data:
+        if CMD.SEGCOUNT in seg_count_data:
             #print(f"GOT SEG COUNT DATA: {seg_count_data}")
             _, args = extract_cmd(seg_count_data)
             seg_count = args[0]
@@ -38,7 +83,7 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
         chunks_concatenated = ""
         for _ in range(seg_count):
             seg_len_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
-            if "SegLen" in seg_len_data:
+            if CMD.SEGLEN in seg_len_data:
                 _, args = extract_cmd(seg_len_data)
                 receive_amount = args[0]
             else:
@@ -50,7 +95,6 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
 
             # DECRYPTING &&/|| DECODING TO STRING
             if decrypt_data:
-                #print(f"decrypting: {received_data}")
                 data_chunk = decrypt(received_data, priv_key).decode(ENCODE_FORMAT)
                 if verbose:
                     print(f"Encrypted data received = {received_data} \nDecrypted data = {data_chunk}")
@@ -75,13 +119,13 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
         return extract_cmd(chunks_concatenated)
     
     except socket.error as e:
-        print(f"[ERROR]: IN {handle_recv.__name__}\n{e}")
+        print(f"[ABRUPT DISCONNECTION]: IN {handle_recv.__name__}\n{e}")
         return None
 
 
 def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=False, pub_key="", encrypt_data=True) -> bool:
     """ 
-    Takes command want to send & optionally any arguments
+    Takes command to send & optionally any arguments
     Params:
         conn (Socket):
         addr (_RetAddress):
@@ -91,20 +135,18 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
     try:
         # FORMATTING
         if not request_out:
-            data = f"#IC[{cmd}] ({args})"
+            data = format_ic_cmd(cmd=cmd, args=args)
+            
         else:
             data = request_out
         
-        # SEGMENTING
-        #data_seg_list = segment_str(data)
-        #seg_count = SEGMENT_CHUNK_SIZE
 
         data_len = len(data)
         seg_len = 50
         seg_count = math.ceil(data_len / seg_len) 
 
         # PRE-SHARE DATA SEGMENT COUNT
-        conn.send(setup_chunk_to_send(f"#IC[SegCount]({seg_count})".encode("utf-8")))
+        conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGCOUNT, args=seg_count).encode("utf-8")))
 
         # DEBUGING
         if verbose:
@@ -131,7 +173,7 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
                 data_ready_to_send = data_encoded
 
             # SENDING
-            conn.send(setup_chunk_to_send(f"#IC[SegLen]({len(data_ready_to_send)})".encode("utf-8")))
+            conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGLEN, args=len(data_ready_to_send)).encode("utf-8")))
             conn.send(data_ready_to_send)
         
         
@@ -139,14 +181,16 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
         return True
     
     except socket.error as e:
-        print(f"[ERROR]: IN {handle_send.__name__}\n{e}")
-        return False
+        print(f"[ABRUPT DISCONNECTION]: IN {handle_send.__name__}\n{e}")
+        return False 
 
 def setup_chunk_to_send(data: bytes) -> bytes:
     #RECEIVE_AMOUNT = 1024
     data_in_fixed_chunk = data + ((RECEIVE_AMOUNT - len(data)) * b' ')
     return data_in_fixed_chunk
 
+def format_ic_cmd(cmd: str, args: Any) -> str:
+    return f"#IC[{cmd}] ({args})"
 
 
 def extract_cmd(data: str) -> tuple:
@@ -154,8 +198,7 @@ def extract_cmd(data: str) -> tuple:
     Params:
         data (str): "#IC[command] (arg1, arg2, ...)"
     Returns:
-        tuple|None (("cmd" ["arg1", "arg2"])): 
-        
+        tuple|None (("cmd" ["arg1", "arg2"])):
     # """
 
     # COMMAND
@@ -210,7 +253,7 @@ def convert_to_pkcs(pub):
 def convert_from_pkcs(pub_pkcs: str):
     return convert_to_key_from_pkcs(pub_pkcs)
 
-def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False):
+def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False) :
     others_public_key = None
 
     sent_key_to_client = False
@@ -218,34 +261,39 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
         sent_key_to_client = True
     got_key_from_client = False
 
-    handle_send(conn, addr, cmd="RequestingPubKey", encrypt_data=False)
 
-    while True:
-        if not sent_key_to_client or not got_key_from_client:
-            result = handle_recv(conn, addr, decrypt_data=False)
-        
-            if result:
-                cmd, args = result
-                if cmd == "SendingPubKey":
-                    got_key_from_client = True
-                    clients_public_key_pkcs = args[0]
-                    others_public_key = convert_from_pkcs(clients_public_key_pkcs)
-                    if verbose:
-                        print(f"Got other participants public key - {others_public_key}")
+   
+    send_result = handle_send(conn, addr, cmd="RequestingPubKey", encrypt_data=False)
+    if send_result:
+        while True:
+            if not sent_key_to_client or not got_key_from_client:
+                result = handle_recv(conn, addr, decrypt_data=False)
+            
+                if result:
+                    cmd, args = result
+                    if cmd == "SendingPubKey":
+                        got_key_from_client = True
+                        clients_public_key_pkcs = args[0]
+                        others_public_key = convert_from_pkcs(clients_public_key_pkcs)
+                        if verbose:
+                            print(f"Got other participants public key - {others_public_key}")
 
-                elif cmd == "RequestingPubKey":
-                    sent_key_to_client = True
-                    # Save key into pkcs for loading on client side
-                    handle_send(conn, addr, cmd="SendingPubKey", args=convert_to_pkcs(sessions_generated_public_key))
-                    if verbose:
-                        print(f"Sending Public key to other participant - {sessions_generated_public_key}")
+                    elif cmd == "RequestingPubKey":
+                        sent_key_to_client = True
+                        # Save key into pkcs for loading on client side
+                        send_result = handle_send(conn, addr, cmd="SendingPubKey", args=convert_to_pkcs(sessions_generated_public_key))
+                        if verbose:
+                            print(f"Sending Public key to other participant - {sessions_generated_public_key}")
+                        if not send_result:
+                            return None
 
-
-                else:
-                    print(f"[{handle_pubkey_share.__name__}] GOT SOMETHING UNEXPECTED - {result}")
-        else:
-            # The key sharing session is SUCCESSFULLY finished
-            return others_public_key
+                    else:
+                        print(f"[{handle_pubkey_share.__name__}] GOT SOMETHING UNEXPECTED - {result}")
+            else:
+                # The key sharing session is SUCCESSFULLY finished
+                return others_public_key
+    else:
+        return None
 
 ################################
 
@@ -277,6 +325,22 @@ def get_segment(seg_id, data:str, segment_len:int):
 # ERROR CHECKING
 def check_md5():
     pass
+
+# EMAILING
+
+def send_email(receiver_email, data, subject):
+    print(f"SENDING EMAIL TO: {receiver_email} \nMESSAGE BEING SENT: {data}")
+    sender_email = "uodmessengerapp@gmail.com"
+    password = "yunj jscm rgdu xuad" # Settings Password: 'Derby100715281' - App Password: 'yunj jscm rgdu xuad'
+    msg = MIMEText(data, "plain")
+    msg["Subject"] = subject
+
+
+    host_name = "smtp.gmail.com"
+    with smtplib.SMTP_SSL(host_name) as server:
+        server.login(sender_email, password)
+        server.sendmail(sender_email, receiver_email, msg.as_string())
+        server.quit()
 
 
 

@@ -10,7 +10,7 @@ import GlobalItems
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from client.UDPCalling.Send import begin_send_audio_data
 from client.UDPCalling.Receive import begin_recv_audio_data
-from Shared.SharedTools import (
+from Shared.SharedTools import (CMD,
                            extract_cmd,
                            handle_send,
                            handle_recv,
@@ -37,6 +37,7 @@ private_key = None
 
 kill_all_non_daemon = False
 
+server_specific_buffer = []
 
 
 def login_handle() -> bool:
@@ -49,7 +50,7 @@ def login_handle() -> bool:
             received = handle_recv(client, SERVER_LOCATION, priv_key=private_key)
             if received:
                 cmd, args = received
-                if cmd == "login" or cmd == "register":
+                if cmd == CMD.LOGIN or cmd == CMD.REGISTER:
                     if "SUCCESS" in args[0]:
                         # Successfully logged into account
                         # stores login for when logging in again
@@ -62,12 +63,12 @@ def login_handle() -> bool:
                         
                         print(f"Success on {cmd}")
                         # Let window know
-                        if cmd == "login":
+                        if cmd == CMD.LOGIN:
                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('_', True)")
                         else:
                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('_', True)")
                     elif "FAIL" in args[0]:
-                        if cmd == "login":
+                        if cmd == CMD.LOGIN:
                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('Username_or_Password_is_incorrect', False)")
                         else:
                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('Username_or_Email_is_taken', False)")
@@ -116,33 +117,33 @@ def server_handle():
 
             # Current setup is stack - (in final product this should ideally be queued)
             # request_out will contain the command set from the window-module to do something with it here networkly
-            request_out = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()             #input("->: ")
+            request_out = None if len(GlobalItems.send_server_msg_buffer) == 0 else GlobalItems.send_server_msg_buffer.pop()
             if request_out:
-                if "exit" in request_out:
+                if CMD.EXIT in request_out:
                     handle_exit()
                     break
 
-                elif "CallPerson" in request_out:
+                elif CMD.CALLPERSON in request_out:
                     # Needs arg of person sending to & this persons id
-                    handle_call_person(request_out, pub_priv_keys)
+                    handle_call_person(request_out=request_out, keys=pub_priv_keys)
 
-                elif "RefreshChats" in request_out:
-                    handle_refresh_chats(request_out, pub_priv_keys)
+                elif CMD.REFRESHCHATS in request_out:
+                    handle_refresh_chats(request_out=request_out, keys=pub_priv_keys)
 
-                elif "SearchContact" in request_out:
-                    handle_search_contacts(request_out, pub_priv_keys)
+                elif CMD.SEARCHCONTACT in request_out:
+                    handle_search_contacts(request_out=request_out, keys=pub_priv_keys)
 
-                elif "SaveContact" in request_out:
-                    handle_save_contact(request_out, pub_priv_keys)
+                elif CMD.SAVECONTACT in request_out:
+                    handle_save_contact(request_out=request_out, keys=pub_priv_keys)
 
-                elif "GetSavedContactsChats" in request_out:
-                    handle_get_chats(request_out, pub_priv_keys) # MAKE BUTTON TO GET THIS REQUEST GOING
+                elif CMD.GETSAVECONTACTCHATS in request_out:
+                    handle_get_chats(request_out=request_out, keys=pub_priv_keys) # MAKE BUTTON TO GET THIS REQUEST GOING
 
-                elif "GetMessagesHistory" in request_out:
-                    handle_get_chats_history(request_out, pub_priv_keys)
+                elif CMD.GETMESSAGEHISTORY in request_out:
+                    handle_get_chats_history(request_out=request_out, keys=pub_priv_keys)
 
-                elif "SendMessage" in request_out:
-                    handle_send_message(request_out, pub_priv_keys)
+                elif CMD.SENDMESSAGE in request_out:
+                    handle_send_message(request_out=request_out, keys=pub_priv_keys)
 
 
                 # Should be "if request_out contains 'message' - (This should become a command with args as the person send to and the message being sent) "
@@ -151,119 +152,112 @@ def server_handle():
                     client.send(request_out.encode("utf-8"))           
 
                 #NOTE: After sending a cmd, should receive something back from server always. Even just an acknowledgement
+    
+        
     else:
         print("Failed to log in. Bye!")
 
 
+
+
 # -=-= POST-LOGIN FUNCTIONS =-=- #
+def handle_request_out_decor(func):
+    def inner(*args, **kwargs):
+        handle_send(conn=client, request_out=kwargs["request_out"], pub_key=kwargs["keys"][0])
+        while True:
+            received = handle_recv(client, SERVER_LOCATION, priv_key=kwargs["keys"][1])
+            if received:
+                cmd, args = received
+                if cmd in CMD.REQUEST_OUT_CMDS:
+                    func(cmd, args)
+                    break
+
+                elif cmd in CMD.SERVER_SPECIFIC:
+                    # Received Broadcast
+                    server_specific_buffer.append(received)
+
+    return inner
+
+
+
 # These takes parameters & works in-conjuction with 'server_handle()'"
 # These functions send message and then wait for the appropriate response to handle it (SYNCHRONOUS)
-def handle_call_person(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_call_person(cmd, args) -> None:
     """IC = CallPerson"""
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0], verbose=True)
-    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
-    if received:
-        cmd, args = received    # Shall receive OTHER PERSONS IPV4 to dial in
-        if args[0] == False:
-            print("Person cannot be called right now")
-        else:
-            print(f"CAN CALL - calling IPV4: {args}")
-            begin_send_audio_data(args[0])
-          
-            print(f"MY IP IS: {IP}")
-            begin_recv_audio_data(IP)
+    
+    if args[0] == False:
+        print("Person cannot be called right now")
+    else:
+        # Shall receive OTHER PERSONS IPV4 to dial in
+        print(f"CAN CALL - calling IPV4: {args}")
+        begin_send_audio_data(args[0])
+        
+        print(f"MY IP IS: {IP}")
+        begin_recv_audio_data(IP)
 
 
-
-def handle_send_message(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_send_message(cmd, args) -> None:
     """IC = SendMessage"""
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0], verbose=True)
-    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1], verbose=True)
-    if received:
-        cmd, args = received    
-        GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SendMessage]({args})")
+
+    GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SendMessage]({args})")
 
 
-def handle_get_chats_history(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_get_chats_history(cmd, args) -> None:
     """IC = GetMessagesHistory"""
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
-    received = handle_recv(conn=client, addr=SERVER_LOCATION, priv_key=keys[1])
-    if received:
-        cmd, args = received    
-        GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetMessagesHistory]({args})")
+ 
+    GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetMessagesHistory]({args})")
 
 
-
-def handle_refresh_chats(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_refresh_chats(cmd, args) -> None:
     """IC = RefreshChats"""
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
-    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
-    if received:
-        cmd, args = received    
-        print(cmd, " and args: ", args)
+   
+    print(cmd, " and args: ", args)
         
 
-
-def handle_get_chats(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_get_chats(cmd, args) -> None:
     """IC = GetSavedContactsChats"""
     
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
-    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
-
-    if received:
-        cmd, args = received    
-        if cmd == "GetSavedContactsChats":
-            if args[0] != False:
-                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetSavedContactsChats]({args})")
-            else:
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[GetSavedContactsChats](False)")
+    if cmd == "GetSavedContactsChats":
+        if args[0] != False:
+            GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[GetSavedContactsChats]({args})")
+        else:
+            GlobalItems.interpreted_server_feedback_buffer.append("#IC[GetSavedContactsChats](False)")
 
 
-
-def handle_save_contact(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_save_contact(cmd, args) -> None:
     """IC = SaveContact"""
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0]) 
-    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
-    if received:
-        cmd, args = received
         
-        if cmd == "SaveContact":
-            if args[0] == True:
-                print("Server sucessfuly saved contact")
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](True)")
-            else:
-                print("Something went wrong when attemptign to save contact")
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](False)")
+    if cmd == "SaveContact":
+        if args[0] == True:
+            print("Server sucessfuly saved contact")
+            GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](True)")
+        else:
+            print("Something went wrong when attempting to save contact")
+            GlobalItems.interpreted_server_feedback_buffer.append("#IC[SaveContact](False)")
 
-
-def handle_search_contacts(request_out, keys) -> None:
+@handle_request_out_decor
+def handle_search_contacts(cmd, args) -> None:
     """IC = SearchContact"""
     # Sending straight away as already formatted = make function for error handling these.
     
-    handle_send(conn=client, request_out=request_out, pub_key=keys[0])
-    received = handle_recv(client, SERVER_LOCATION, priv_key=keys[1])
-    if received:
-        cmd, args = received
-        if cmd == "SearchContact":
-            print(f"Received: {args}")
-            if "FAIL" not in args[0]:
-                # Found results
-                GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SearchContact]({args})")
-            else:
-                GlobalItems.interpreted_server_feedback_buffer.append("#IC[SearchContact](False)")
-                # Did NOT find results
+    if cmd == "SearchContact":
+        print(f"Received: {args}")
+        if args[0]:
+            # Found results
+            GlobalItems.interpreted_server_feedback_buffer.append(f"#IC[SearchContact]({args})")
+        else:
+            GlobalItems.interpreted_server_feedback_buffer.append("#IC[SearchContact](False)")
+            # Did NOT find results
 
 
 
 
-
-def establish_p2p_private_connection():
-    """ From client need to request to p2p connect to a client. Server should pair other person if they wish to communicate 
-       """
-
-
-def handle_call(ipv4_to_dial_into):
-    pass
 
 
 # Begin 

@@ -19,7 +19,7 @@ else:
     conn = sqlite3.connect(DB_CONN_STR_EXTERNAL, check_same_thread=False)
 cursor = conn.cursor()
 
-# ---------- Database Manipulative Functions
+# ---------- Database Manipulative Functions    DDL
 
 def create_table(table_name, table_values=""):
     cursor.execute(f"""
@@ -35,12 +35,14 @@ def overwrite_table(table_name, table_values=""):
     cursor.execute(f"""DROP TABLE IF EXISTS {table_name}""")
     create_table(table_name, table_values)  
     print(f"SUCCESSFULLY OVERWRITTEN TABLE {table_name} ({table_values})")  
+def truncate_table(table_name):
+    cursor.execute(f"""TRUNCATE TABLE {table_name}""")
 # ------------
 
 
 
 
-# ---------- Data Manipulative Functions
+# ---------- Data Manipulative Functions     DML
 # No need to worry about SQL injection as these functions have no relation to forms, entries etc. Solely ran via undercovers
 def commit_changes(func):
     func()
@@ -143,7 +145,7 @@ def insert_into_account(**kwargs) -> bool:
     returns
         (True|False): Depending on if sql insert was successful 
     """
-    #print(f"Keys: {list(kwargs.keys())}")
+   
     keys_str = str(list(kwargs.keys()))
     keys_str = keys_str[1:len(keys_str)-1]
 
@@ -162,17 +164,49 @@ def insert_into_account(**kwargs) -> bool:
             print(f"[DB ERROR]: {e}")
             return False
 
-def delete_all_from_table(table_name):
-    cursor.execute(f"DELETE FROM {table_name}")
+def change_account_password(**kwargs) -> bool:
+    if check_columns_exist(kwargs):
+        try:
+            cursor.execute(f"""
+                    UPDATE 
+            """)
+            return True
+        except sqlite3.Error as e:
+            print(f"[DB ERROR]: {e}")
+            return False
+
+def check_users_ipv4(username):
+    query_result = cursor.execute(f"""
+                    SELECT ipv4 
+                    FROM {ACCOUNTS_TABLE_NAME}
+                    WHERE username='{username}'
+                """)
+    return query_result.fetchall()
+
+
+def truncate_table(table_name):
+    cursor.execute(f"TRUNCATE TABLE {table_name}")
     conn.commit()
 
-def check_account_exists(username, email) -> bool:
+def delete_account(username) -> None:
+    cursor.execute(f"""
+                DELETE FROM {ACCOUNTS_TABLE_NAME}
+                WHERE username='{username}'
+                """)
+
+
+def check_account_exists(username=None, email=None) -> bool:
     """ Username & Email for accounts MUST be UNIQUE """
 
-    username_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE username='{username}'")
-    usernames_matching = username_search.fetchall()
-    email_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE email='{email}'")
-    emails_matching = email_search.fetchall()
+    emails_matching = [] 
+    usernames_matching = []
+
+    if username:
+        username_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE username='{username}'")
+        usernames_matching = username_search.fetchall()
+    if email:
+        email_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE email='{email}'")
+        emails_matching = email_search.fetchall()
     
     return True if len(emails_matching + usernames_matching) != 0 else False
 
@@ -214,7 +248,6 @@ def get_all_contacts_chats(accounts_id) -> list:
         return False
 
 ## MESSAGES
-
 def get_messages_for_chat(sender_id, receiver_id) -> list:
     try:
         query_result = cursor.execute(f"""
@@ -245,6 +278,7 @@ if __name__ == "__main__":
     # Manually make changes to database, data stored, tests all here to db here - (untracked migrations)
    
     #delete_all_accounts()
+    
 
     #insert_into_account(email="testvegeta@gmail.com", username="Vegeta", password="saiyan", ipv4=14213, join_date="2024/10/31", login_attempts=0)
     #insert_into_account(email="testGoku@gmail.com", username="Goku", password="saiyan", ipv4=14211, join_date="2024/10/31", login_attempts=0)
@@ -252,13 +286,15 @@ if __name__ == "__main__":
     #insert_into_table_manual(CONTACTS_TABLE_NAME, keys="AccountOneID, AccountTwoID", values="1,2")
 
     #add_message_for_chat("Hello Goku From Vegeta (I think)", 1, 2)
-    print(get_messages_for_chat(1, 2))
+    #print(get_messages_for_chat(1, 2))
 
+    #delete_account("patrick")
+    
 
     #delete_all_from_table(CONTACTS_TABLE_NAME)
-    print(f"Top10 accounts: {get_top_table(ACCOUNTS_TABLE_NAME, top=10)}")
-    print(f"Top10 contacts: {get_top_table(CONTACTS_TABLE_NAME, top=10)}")
-    print(f"Top10 Messages: {get_top_table(MESSAGES_TABLE_NAME, top=10)}")
+    print(f"Top15 accounts: {get_top_table(ACCOUNTS_TABLE_NAME, top=15)}\n\n")
+    #print(f"Top10 contacts: {get_top_table(CONTACTS_TABLE_NAME, top=10)}\n\n")
+    #print(f"Top10 Messages: {get_top_table(MESSAGES_TABLE_NAME, top=10)}\n\n")
 
 
     #print(f"Query result is: {get_account_details({"username": 'Vegeta'})}")

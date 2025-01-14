@@ -17,6 +17,7 @@ class Account(db_context):
         self.date_joined     = columns[5]
 
         self.login_attempts = columns[6]
+        self.locked = False
 
     def __str__(self):
         return f"[id={self.id} username={self.username}]"
@@ -31,54 +32,83 @@ class ContactRelationship:
         pass
 
 
-
 #~~~~~ Model Managers ~~~~~# 
 class ModelManager:
     """ Handles entire database """
-    def get_accounts(**user_input):
+    @classmethod
+    def get_accounts(cls, **user_input):
         """ Get accounts that match according to query """
         return db.get_account_details(user_input)
-    def get_accounts_user_searched_for(username=None, id=None):
+    
+    @classmethod
+    def get_accounts_user_searched_for(cls, username=None, id=None):
         return db.get_account_names_and_ids(username, id)
 
-    def create_account(**user_input):
+    @classmethod
+    def create_account(cls, **user_input):
         if not db.check_account_exists(username=user_input["username"], email=user_input["email"]):
-            # NOTE PASSWORD NEEDS TO BE HASHED
-            return db.insert_into_account(email=user_input["email"], username=user_input["username"], password=user_input["password"], ipv4=user_input["ipv4"], 
+            # HASH PASWORD
+            hashed_password = hash_data(user_input["password"])
+
+            return db.insert_into_account(email=user_input["email"], username=user_input["username"], password=hashed_password, ipv4=user_input["ipv4"], 
                                join_date=date.today().strftime("%d-%m-%Y"), login_attempts=0)
         else:
             return None
+    
+    @classmethod
+    def change_password(cls, **user_input) -> bool:
+        if not db.check_account_exists(username=user_input["username"]):
+            return db.change_account_password(username=user_input["username"], new_password=user_input["newPassword"])
+        else:
+            return False
 
+    @classmethod
+    def check_new_login_location(cls, username, ipv4) -> bool:
+        __result = db.check_users_ipv4(username)[0][0]
+        print(f"OLD IPV4: {__result}; NEW IPV4: {ipv4}")
+        return ipv4 != __result
 
     # CONTACTS
-    def create_contact_relationship(**user_input) -> bool:
+    @classmethod
+    def create_contact_relationship(cls, **user_input) -> bool:
         return db.add_contact_relationship(id1=user_input["thisID"], id2=user_input["otherID"], paired_val=user_input["paired_value"])
-    def get_contacts_chats(contactID):
-        return db.get_all_contacts_chats(contactID)
+    @classmethod
+    def get_contacts_chats(cls, contact_id):
+        return db.get_all_contacts_chats(contact_id)
 
     # MESSAGES
-    def add_message_from_to_specific(message, sender_id, receiver_id) -> bool:
+    @classmethod
+    def add_message_from_to_specific(cls, message, sender_id, receiver_id) -> bool:
         return db.add_message_for_chat(message_text=message, sender_id=sender_id, receiver_id=receiver_id)
-    def get_messages_from_chat(sender_id, receiver_id) -> list:
+    @classmethod
+    def get_messages_from_chat(cls, sender_id, receiver_id) -> list:
         return db.get_messages_for_chat(sender_id=sender_id, receiver_id=receiver_id)
 
+
+class AccountManagerErrors:
+    account_locked = False
+    incorrect_password = False
 
 
 DEFAULT_ALLOWED_LOGIN_ATTEMPTS = 7
 class AccountManager:
-    def handle_login(**user_input) -> Union[Account, None]:
+    @classmethod
+    def handle_login(cls, **user_input) -> Union[Account, None]:
         """ Could do with returning feedback (username isn't found) create a invalid instance or error obj to send & inform user? """
         __accounts = ModelManager.get_accounts(username=user_input["username"])
-        
+        __account_manager_errors = AccountManagerErrors()
+
         if __accounts:
             __acc_instance = Account(__accounts[0])
             if __acc_instance.login_attempts > DEFAULT_ALLOWED_LOGIN_ATTEMPTS:
                 print("User attempted to login to account that's LOCKED")
                 # NOTE - Need to sent SMTP to users email to unlock account - (go through a change password)
-                return None
+                __acc_instance.locked = True
+                return __acc_instance   # WONT WORK AS ACCOUNT IS LOCKED
+
             
-            # NOTE: NEED TO HASH THESE!
-            if user_input["password"] != __acc_instance.password_hashed:
+            if hash_data(user_input["password"]) != __acc_instance.password_hashed:
+                # Login Was Failure - Password Inputted IS NOT CORRECT
                 db.update_account_login_attempt(id=__acc_instance.id, login_attempts=__acc_instance.login_attempts+1)
                 return None
             else:
@@ -87,8 +117,8 @@ class AccountManager:
                 return __acc_instance
             
 
-
-    def handle_register(**user_input) -> Union[Account, None]:
+    @classmethod
+    def handle_register(cls, **user_input) -> Union[Account, None]:
         __success = ModelManager.create_account(email=user_input["email"], username=user_input["username"], password=user_input["password"], ipv4=user_input["ipv4"])
         if __success:
             __accounts = ModelManager.get_accounts(username=user_input["username"])
@@ -96,9 +126,18 @@ class AccountManager:
         else:
             return None
 
+    @classmethod
+    def handle_passwordreset(cls, username, password) -> bool:
+        return ModelManager.change_password(username=username, newPassword=password)
+    @classmethod
+    def is_new_login_location(cls, ipv4, username) -> bool:
+        return ModelManager.check_new_login_location(username, ipv4)
+         
+
         
 class ContactsManger:
-    def handle_search_contact(username=None, id=None) -> Union[list, None]:
+    @classmethod
+    def handle_search_contact(cls, username=None, id=None) -> Union[list, None]:
         """Returns 
         - List (matches found)
         - None (No matches)
@@ -109,7 +148,8 @@ class ContactsManger:
         else:
             return None
 
-    def handleAddContactRelationship(**user_input) -> bool:
+    @classmethod
+    def handle_add_contact_relationship(cls, **user_input) -> bool:
         """ Returns Bool - Informs on successful contact sending """
         __result = ModelManager.create_contact_relationship(thisID=user_input["thisID"], otherID=user_input["otherID"], paired_value=user_input["paired_value"])
         if __result:
@@ -117,24 +157,24 @@ class ContactsManger:
             return True
         else:
             return False 
-
-    def handle_get_all_chats_for_contact(user_id) -> list:
+    
+    @classmethod
+    def handle_get_all_chats_for_contact(cls, user_id) -> list:
         __results = ModelManager.get_contacts_chats(user_id)
         return __results
 
 
-    def handleSendRequest():
-        pass
-
 class MessageManager:
-    def handle_send_message(message, sender_id, receiver_id):
+    @classmethod
+    def handle_send_message(cls, message, sender_id, receiver_id):
         __successful = ModelManager.add_message_from_to_specific(message=message, sender_id=sender_id, receiver_id=receiver_id)
         if __successful:
             return True
         else:
             return False
 
-    def handle_get_chat_instance_messages(sender_id, receiver_id):
+    @classmethod
+    def handle_get_chat_instance_messages(cls, sender_id, receiver_id):
         __result = ModelManager.get_messages_from_chat(sender_id=sender_id, receiver_id=receiver_id)
         if len(__result) != 0:
             return __result

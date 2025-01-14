@@ -12,16 +12,16 @@ import os
 from typing import Union
 
 
-from dbModelManager import AccountManager, Account, ContactsManger, MessageManager
+from dbModelManager import AccountManager, AccountManagerErrors, Account, ContactsManger, MessageManager
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from Shared.SharedTools import (extract_cmd, 
-                           #list_to_str_with_commas,
-                           pairing_function,
-                           handle_recv,
-                           handle_send,
-                           gen_keys, handle_pubkey_share# convert_to_pkcs, convert_from_pkcs
-                           )
+from Shared.SharedTools import (CMD,
+                            extract_cmd, 
+                            send_email,
+                            pairing_function,
+                            handle_recv,
+                            handle_send,
+                            gen_keys, handle_pubkey_share)
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -34,30 +34,49 @@ with open("Shared\\details", "r") as file:
         
 PORT = 5055
 ADDR = (IP, PORT)
-
 server.bind(ADDR)
 
 # NOTE: THIS NEEDS TO BE USED SYNCHRONOUSLY
-#model_manager = ModelManager()
 
 # Command notation is: #IC[command] (arguments) 
-# Kinda redundant 
-INTERNAL_COMMANDS = ["login", "exit", "call"]
+
 
 # (ClientID, IPV4)
 current_ipv4s_in_use = []
 
 # -------- Functions --------
 
-# def send_email():
-#     #context = ssl.create_default_context()
-#     sender_email = "patrickwigley2@gmail.com"
-#     recv_email=
-#     with smtplib.SMTP("smtp.gmail.com", 587) as server:
-#         server.login()
+def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
+    clients_account = AccountManager.handle_login(username=args[0], password=args[1])          
+    if clients_account:
+        if not clients_account.locked:
+            if False: #NOTE ADD BACK: 
+                if AccountManager.is_new_login_location(ipv4=addr[0], username=args[0]):    
+                    send_email(receiver_email=clients_account.email, 
+                            data=f"Hi {args[0]}, you have logged in at a different location, check that this is you?", 
+                            subject="New Login Location")
+            handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
+            return clients_account
+        else:
+            if False: #NOTE ADD BACK: 
+                send_email(receiver_email=clients_account.email, 
+                            data=f"Hi {args[0]}, we have locked your account - There has been multiple failed login attempts into your account.", 
+                            subject="Are you trying to access your account?")
+    return None
 
+def handle_client_register(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
+    clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
+    if clients_account:
+        if False: #NOTE ADD BACK
+            send_email(receiver_email=clients_account.email, 
+                    data=f"Welcome {args[1]} to the UOD Messenger app! Hosted at {IP}:{PORT} We have saved your account to this email. This social application is still in production!",
+                    subject="The UOD Messenger App")
+        
+        handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
+        return clients_account
+    return None
 
-def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
+def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
     """
     Params:
         - conn [Socket] 
@@ -70,32 +89,37 @@ def handle_clients_login(conn, addr, pub_priv_keys) -> Union[Account, None]:
         - Only accepts 'IC[login] (username, password)' here.
     """
     while True:
+          
         print(f"Waiting for login details at: {addr}")
         result = handle_recv(conn, addr, priv_key=pub_priv_keys[1])
         if result:
             cmd, args = result
-            if (cmd == "login" and len(args) == 2) or (cmd == "register" and len(args) == 3):  
-                if cmd == "login":
-                    clients_account = AccountManager.handle_login(username=args[0], password=args[1])
-                else:
-                    clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
-                if clients_account:                
-                    handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
-                    return clients_account
-                else:
-                    handle_send(conn, addr, cmd=cmd, args=["FAIL"], pub_key=pub_priv_keys[0])
-            elif cmd == "ForgottenLogin":
-               pass # SMTP SERVER THEN SENDS RESET THING
-
+            if cmd == CMD.LOGIN:
+                result = handle_client_login(conn, addr, pub_priv_keys, cmd, args)
+                if result:
+                    return result
+            elif cmd == CMD.REGISTER:
+                result = handle_client_register(conn, addr, pub_priv_keys, cmd, args)
+                if result:
+                    return result
             else:
-                print(f"Something went wrong - received: {result}")
+                print(f"Received Something Unexpected in {handle_client_auth.__name__}: {result}")
                 return None
+        
+            handle_send(conn, addr, cmd=cmd, args=["FAIL"], pub_key=pub_priv_keys[0])
+
+            if False:
+                # NOT IMPLEMENTED YET
+                if cmd == "ForgottenLogin":
+                    if AccountManager.handle_passwordreset(username=args[0]):
+                        handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
+                        
+                    else:
+                        handle_send(conn, addr, cmd=cmd, args=False, pub_key=pub_priv_keys[0])
+                ################
         else:
             return None
-
-
-
-
+        
 
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
@@ -107,16 +131,15 @@ def handle_client(conn, addr):
     #
     clients_pub_key = handle_pubkey_share(conn, addr, pub_key, verbose=True)
     
-    
     # Handle login here
-    clients_account = handle_clients_login(conn, addr, (clients_pub_key, priv_key))
+    clients_account = handle_client_auth(conn, addr, (clients_pub_key, priv_key))
 
     if clients_account:
         print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
         print(f"this clients ID is {clients_account.id}")
         clients_ipv4_location_details = (clients_account.id, addr) 
         current_ipv4s_in_use.append(clients_ipv4_location_details)
-        
+
         while True:
             received = handle_recv(conn, addr, priv_key=priv_key, verbose=True)
             if received:
@@ -136,15 +159,11 @@ def handle_client(conn, addr):
                     for client_and_ipv4 in current_ipv4s_in_use:
                         if str(args[0]) == str(client_and_ipv4[0]):
                             requested_clients_ipv4 = client_and_ipv4[1]
-              
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4, pub_key=clients_pub_key)    
                 
-                elif cmd == "SendMsgToLiveChat":
-                    pass
                 
                 elif cmd == "SendMessage":
                     result = MessageManager.handle_send_message(message=args[0], sender_id=clients_account.id, receiver_id=args[1])
-                    
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=result, pub_key=clients_pub_key)
                     
                 elif cmd == "SearchContact":
@@ -154,16 +173,15 @@ def handle_client(conn, addr):
                             (clients_account[0], clients_account[1]) for clients_account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
                             ], 
                             pub_key=clients_pub_key)
-                
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=['FAIL'], pub_key=clients_pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=clients_pub_key)
 
                 elif cmd == "SaveContact":
-                    add_contact_result = ContactsManger.handleAddContactRelationship(thisID=clients_account.id, otherID=args[0], paired_value=pairing_function(int(clients_account.id), int(args[0])))
+                    add_contact_result = ContactsManger.handle_add_contact_relationship(thisID=clients_account.id, otherID=args[0], paired_value=pairing_function(int(clients_account.id), int(args[0])))
                     if add_contact_result:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=True, pub_key=clients_pub_key)
                     else:
-                        handle_send(conn=conn, addr=addr, cmd=cmd, args=["'FAIL'"], pub_key=clients_pub_key)
+                        handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=clients_pub_key)
                         
 
                 elif cmd == "GetSavedContactsChats": #GetContacts
@@ -177,24 +195,32 @@ def handle_client(conn, addr):
 
                 elif cmd == "GetMessagesHistory":
                     results = MessageManager.handle_get_chat_instance_messages(sender_id=clients_account.id, receiver_id=args[0])
-                    
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=results, pub_key=clients_pub_key)
+                
+                elif cmd == "SendMsgToLiveChat":
+                    for conn in current_ipv4s_in_use:
+                        handle_send(conn=conn, cmd=cmd, args=args[0])
+                
                 else:
                     print("Received unkwown cmd - Is this implemented yet?")
                     break
                
+
+
                 if cmd == "acceptContact":
                     pass
-                    
 
             else:
                 print(f"Received unknown data? \n-Connection: {addr} \n-Data: {received}")
                 break
+
+        # Post session clean-up
+        current_ipv4s_in_use.remove(clients_ipv4_location_details)
+
     else:
         print(f"Client at {addr} Failure to login")
     
-    # Post session clean-up
-    current_ipv4s_in_use.remove(clients_ipv4_location_details)
+    
 
 
 def handle_incoming_connections():
@@ -210,11 +236,6 @@ def handle_incoming_connections():
             thread_instances.append(thread)
             thread.start()
             
-
-
-def establish_p2p_call(session):
-    """ Function establishes and handles UDP p2p connection between two clients for transmitting auditory data """
-    
 
 
 
