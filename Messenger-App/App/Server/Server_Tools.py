@@ -26,9 +26,24 @@ def extract_cmd(data) -> tuple:
 def hash_data(data) -> str:
     return sha256(data.encode("utf-8")).hexdigest() # NOTE HASH THIS
 
+def caesar_cipher_value(data, encrypt):
+    MAX = 122
+    KEY = 9
+    
+    if isinstance(data, str):
+        new_data = ""
+        for char in data:
+            new_data += chr((ord(char) + KEY) % MAX if encrypt else (ord(char) - KEY) % MAX)
+        return new_data
+
+    else:
+        print(f"WE ARE RUNNING WITH A {type(data)} - Data is: {data}")
+        raise TypeError
 
 
 if __name__ == "__main__":
-    
-    
-    print(list_to_str_with_commas([1,2,3,4]))
+    encrypted = caesar_cipher_value("test", encrypt=True)
+    decrypted = caesar_cipher_value(encrypted, encrypt=False)
+
+
+    #print(list_to_str_with_commas([1,2,3,4]))

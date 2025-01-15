@@ -43,7 +43,7 @@ server.bind(ADDR)
 
 # (ClientID, IPV4)
 current_ipv4s_in_use = []
-
+current_conns_in_use = []
 # -------- Functions --------
 
 def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
@@ -65,13 +65,14 @@ def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, 
     return None
 
 def handle_client_register(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
-    clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0])
+    clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0], premium_member=args[3])
     if clients_account:
         if False: #NOTE ADD BACK
             send_email(receiver_email=clients_account.email, 
                     data=f"Welcome {args[1]} to the UOD Messenger app! Hosted at {IP}:{PORT} We have saved your account to this email. This social application is still in production!",
                     subject="The UOD Messenger App")
         
+
         handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
         return clients_account
     return None
@@ -124,6 +125,7 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
     clients_ipv4_location_details = None
+    clients_conn_pubkey_details = None
 
     # Sessions Key Generation 
     # Generate Server Private & Public keys for this client session
@@ -137,16 +139,19 @@ def handle_client(conn, addr):
     if clients_account:
         print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
         print(f"this clients ID is {clients_account.id}")
-        clients_ipv4_location_details = (clients_account.id, addr) 
+        clients_ipv4_location_details = (clients_account.id, addr)
+        clients_conn_pubkey_details = (clients_account.id, clients_account.username, conn, clients_pub_key)
+        
         current_ipv4s_in_use.append(clients_ipv4_location_details)
+        current_conns_in_use.append(clients_conn_pubkey_details)
 
         while True:
-            received = handle_recv(conn, addr, priv_key=priv_key, verbose=True)
+            received = handle_recv(conn, addr, priv_key=priv_key, verbose=False)
             if received:
                 cmd, args = received
                 print(f"Recieved command: {cmd}, args: {args}")
                 
-                if cmd == "exit":
+                if cmd == CMD.EXIT:
                     conn.close()
                     print(f"Closing connection with {addr}")
                     break
@@ -163,9 +168,20 @@ def handle_client(conn, addr):
                 
                 
                 elif cmd == "SendMessage":
-                    result = MessageManager.handle_send_message(message=args[0], sender_id=clients_account.id, receiver_id=args[1])
+                    sender_id=clients_account.id
+                    receiver_id = args[1]
+                    print("Got send message")
+                    result = MessageManager.handle_send_message(message=args[0], sender_id=sender_id, receiver_id=receiver_id)
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=result, pub_key=clients_pub_key)
-                    
+                    # IF RECEIVER IS ONLINE, UPDATE IN REAL-TIME FOR THEM
+                    for id, _, connection, key in current_conns_in_use:
+                        if str(receiver_id) == str(id):
+                            print("Person is online")
+                            # Refresh chat-log for person being sent message (AS THEY'RE ONLINE)
+                            handle_send(conn=connection, cmd=CMD.UPDATE_CHAT_LOG_LIVE, args=sender_id, pub_key=key)
+                            
+
+
                 elif cmd == "SearchContact":
                     result = ContactsManger.handle_search_contact(username=args[0])
                     if result:
@@ -197,13 +213,17 @@ def handle_client(conn, addr):
                     results = MessageManager.handle_get_chat_instance_messages(sender_id=clients_account.id, receiver_id=args[0])
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=results, pub_key=clients_pub_key)
                 
-                elif cmd == "SendMsgToLiveChat":
-                    for conn in current_ipv4s_in_use:
-                        handle_send(conn=conn, cmd=cmd, args=args[0])
-                
+                elif cmd == CMD.BROADCAST:
+                    if clients_account.is_premium_member:
+                        print("Account is allowed to use this feature")
+                        for _, _, connection, key in current_conns_in_use:
+                            handle_send(conn=connection, cmd=cmd, args=f"'PREMIUM MEMBER {clients_account.username} says:     {args[0]}'", pub_key=key)
+                    else:
+                        print("Account is NOT allowed to use this feature")
+                        handle_send(conn=conn, cmd=CMD.BROADCAST_NOT_ALLOWED, pub_key=clients_pub_key)
+
                 else:
                     print("Received unkwown cmd - Is this implemented yet?")
-                    break
                
 
 
@@ -216,7 +236,7 @@ def handle_client(conn, addr):
 
         # Post session clean-up
         current_ipv4s_in_use.remove(clients_ipv4_location_details)
-
+        current_conns_in_use.remove(clients_conn_pubkey_details)
     else:
         print(f"Client at {addr} Failure to login")
     

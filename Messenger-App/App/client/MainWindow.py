@@ -25,8 +25,40 @@ def handle_server_feedback(cmd_searching_for, verbose=False) -> tuple:
             if cmd == cmd_searching_for:
                 return args
             else:
-                print("This item is not meant for here!") # Could return False. THis happens if two server feedbacks get muddled togetrher
+                print("This item is not meant for here!" ) # Could return False. THis happens if two server feedbacks get muddled togetrher
+                print(f"Searching for cmd: {cmd_searching_for} But received: {cmd}")
                 raise ValueError    # Could append back to 'GlobalItems.interpreted_server_feedback_buffer' BUT THIS NEEDS TO BE A QUEUE
+
+
+class EventListenerThread(QThread):
+    """ Waits to handle response from server """
+    task = pyqtSignal()
+    broadcast_task  = pyqtSignal(str)
+    broadcast_fail_task = pyqtSignal()
+    send_chat_task = pyqtSignal(bool)
+    chat_history_task = pyqtSignal(list)
+    update_chat_history_task = pyqtSignal(str)
+
+    def run(self):
+        while True:
+            event = None if len(GlobalItems.window_event_trigger_buffer) == 0 else GlobalItems.window_event_trigger_buffer.pop()
+            if event:
+                cmd, args = extract_cmd(event)
+                if cmd == CMD.BROADCAST:
+                    self.broadcast_task.emit(args[0])
+                
+                elif cmd == CMD.BROADCAST_NOT_ALLOWED:
+                    self.broadcast_fail_task.emit()
+                
+                elif cmd == CMD.SENDMESSAGE:
+                    self.send_chat_task.emit(args[0])
+                
+                elif cmd == CMD.GETMESSAGEHISTORY:
+                    print(args)
+                    self.chat_history_task.emit(args)
+
+                elif cmd == CMD.UPDATE_CHAT_LOG_LIVE:
+                    self.update_chat_history_task.emit(str(args[0]))
 
 
 # -=--=-=-=--= WINDOW
@@ -43,7 +75,19 @@ class MainWindow:
         self.setup_home_sw()
 
         # NOTE: MainStackedWidget consists of inner SWs such as LoginAndRegisterSW & MainMenuSW - if confused again, variables of entries and so on are not encapsulated. 
+      
         self.ui.MainStackedWidget.setCurrentWidget(self.ui.LoginAndRegistration)
+
+
+        self.event_listener_t = EventListenerThread()
+        # SETUP EVENTS
+        self.event_listener_t.broadcast_task.connect(self.handle_broadcast_request)
+        self.event_listener_t.broadcast_fail_task.connect(self.handle_broadcast_fail)
+        self.event_listener_t.send_chat_task.connect(self.handle_enter_message)
+        self.event_listener_t.chat_history_task.connect(self.populate_dm_chat_history)
+        self.event_listener_t.update_chat_history_task.connect(self.handle_update_chat_log_live)
+
+        self.event_listener_t.start()
 
 
     # Main Widget
@@ -64,52 +108,82 @@ class MainWindow:
         self.ui.enter_message_entry.returnPressed.connect(self.submit_enter_message)
         self.ui.Chat_send_btn.clicked.connect(self.submit_enter_message)
         self.ui.Chat_back_btn.clicked.connect(self.return_to_contactchats_page)
+        
 
+        self.ui.broadcast_entry.returnPressed.connect(self.send_broadcast)
+
+
+    def send_broadcast(self):
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.BROADCAST}]('{self.ui.broadcast_entry.text()}')")
+
+
+    def handle_broadcast_request(self, msg):
+        self.ui.broadcast_history.setText(msg)
+
+    def handle_broadcast_fail(self):
+        self.ui.broadcast_entry.setText("You have to be a Premium Member to send broadcasts")
 
     # Chat With Someone
     def submit_enter_message(self):
         IC_CMD = "SendMessage"
         message = self.ui.enter_message_entry.text()
         send_to = self.current_chat_opened_with[0]
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{message}', '{send_to}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{message}', '{send_to}')")
+        
 
-        args = handle_server_feedback(IC_CMD)
-        if args:
+    def handle_enter_message(self, response):
+        if response:
             self.select_enter_chats_btn(self.current_chat_opened_with) # Refresh the chats messages - Terrible method
         else:
             print("Failed to send message??")
 
+
     def select_call_person(self, contact_details):
-        """contact_details= (ID, Name)"""
+        # contact_details = (ID, Name)
         
         # Continue here
         IC_CMD = "CallPerson"
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{contact_details[0]}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{contact_details[0]}')")
 
 
     def select_enter_chats_btn(self, contact_details):
         """ Open chat """
         IC_CMD = "GetMessagesHistory"
         contacts_id, contacts_username = contact_details
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]({contacts_id})")
-      
-        # Handle server feedback
-        # CLEAR CHAT-LOG
-        for msg in reversed(range(self.ui.verticalLayout_chat_history.count())):
-            self.ui.verticalLayout_chat_history.itemAt(msg).widget().setParent(None)
-        # CLEAR SEND-MESSAGE BAR
-        self.ui.enter_message_entry.setText("")
-        
-        args = handle_server_feedback(IC_CMD)
-    
-        self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chat)
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]({contacts_id})")
         self.current_chat_opened_with = contact_details
 
-        # POPULATE CHAT-LOG
-        for msg_details in args:
-            _, msg_text, msg_sender, msg_receiver = msg_details
-            msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
-            self.ui.verticalLayout_chat_history.addWidget(msg)
+        # CLEAR SEND MESSAGE BAR
+        self.ui.enter_message_entry.setText("")
+        
+        # Handle server feedback    
+        self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chat)
+        self.ui.loading_chat_history_label.setVisible(True)
+
+    def populate_dm_chat_history(self, message_data, refresh_entire_chatlog=True):
+        self.ui.loading_chat_history_label.setVisible(False)
+        if refresh_entire_chatlog:
+            # Handle server feedback
+            # CLEAR CHAT-LOG
+            for msg in reversed(range(self.ui.verticalLayout_chat_history.count())):
+                self.ui.verticalLayout_chat_history.itemAt(msg).widget().setParent(None)
+        
+        
+            # POPULATE CHAT-LOG
+            for msg_details in message_data:
+                _, msg_text, msg_sender, msg_receiver = msg_details
+                msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
+                self.ui.verticalLayout_chat_history.addWidget(msg)
+        else:
+            _, msg_text, msg_sender, msg_receiver = message_data
+            new_msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
+            self.ui.verticalLayout_chat_history.addWidget(new_msg)
+    def handle_update_chat_log_live(self, id_receiving_from):
+        print(self.ui.Home_InnerSW.currentWidget() == self.ui.Chat)
+        print(f"{self.current_chat_opened_with[0]} == {id_receiving_from}")
+        if self.ui.Home_InnerSW.currentWidget() == self.ui.Chat and str(self.current_chat_opened_with[0]) == id_receiving_from:
+            # Only refresh if chat is open with person receiving message from
+            self.select_enter_chats_btn(self.current_chat_opened_with)
 
 
 
@@ -118,7 +192,7 @@ class MainWindow:
         """ GETS CONTACTS CHATS """
 
         IC_CMD = "GetSavedContactsChats"
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]()")        
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]()")        
         args = handle_server_feedback(IC_CMD)
 
         # populate the "chat with contact" button(s) to chats list 
@@ -155,7 +229,7 @@ class MainWindow:
         IC_CMD = "SearchContact"
         search_for = self.ui.search_account_entry.text()
         print(f"Searching for matching {search_for}")
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{search_for}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{search_for}')")
 
         server_feedback = handle_server_feedback(cmd_searching_for=IC_CMD)
      
@@ -180,7 +254,7 @@ class MainWindow:
     def sumbit_new_chat_with_contact(self, contact_id_and_name):
         IC_CMD = "SaveContact"
         print(f"Adding new contact {contact_id_and_name}")
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{contact_id_and_name[0]}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{contact_id_and_name[0]}')")
         
         args = handle_server_feedback(cmd_searching_for=IC_CMD)
         if args[0] == True:
@@ -220,7 +294,7 @@ class MainWindow:
     def submit_login_btn(self):
         IC_CMD = "login"
 
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{self.ui.log_username_entry.text()}', '{self.ui.log_password_entry.text()}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{self.ui.log_username_entry.text()}', '{self.ui.log_password_entry.text()}')")
         args = handle_server_feedback(cmd_searching_for=f"{IC_CMD}")
 
         feedback_str, proceed = args
@@ -237,7 +311,7 @@ class MainWindow:
     def submit_register_btn(self):
         IC_CMD = "register"
         print(f"CREATE ACCOUNT:     email: {self.ui.reg_email_entry.text()} username: {self.ui.reg_username_entry.text()} password: {self.ui.reg_password_entry.text()}")
-        GlobalItems.send_server_msg_buffer.append(f"#IC[{IC_CMD}]('{self.ui.reg_email_entry.text()}', '{self.ui.reg_username_entry.text()}', '{self.ui.reg_password_entry.text()}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{self.ui.reg_email_entry.text()}', '{self.ui.reg_username_entry.text()}', '{self.ui.reg_password_entry.text()}', '{self.ui.reg_preimum_code_entry.text()}')")
         args = handle_server_feedback(cmd_searching_for=f"{IC_CMD}")
 
         feedback_str, proceed = args
@@ -252,7 +326,17 @@ class MainWindow:
     def show(self):
         self.main_win.show()
 
-    
+
+
+
+
+
+
+def on_quit_handle():
+    print("Closing")
+    GlobalItems.request_out_buffer.append(f"#IC[{CMD.EXIT}]()")
+
+
 if __name__ == "__main__":
     # ~~~ Begin client thread!
     # Thread created for handling connection requests and setting a thread for each connection 
@@ -263,13 +347,18 @@ if __name__ == "__main__":
 
     # ~~~ Start up PyQT6 Window!
     app = QApplication(sys.argv)
+    app.aboutToQuit.connect(on_quit_handle)
+
     main_win = MainWindow()
     main_win.main_win.setMinimumSize(450,550)
     main_win.main_win.setMinimumSize(750,850)
 
     main_win.show()
-
+    
     sys.exit(app.exec())
+
 
 else:
     print("Doesn't run externally yet")
+
+

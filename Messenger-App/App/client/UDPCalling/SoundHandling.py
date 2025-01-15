@@ -87,9 +87,7 @@ def start_recording_realtime(sender_socket=None):
     inputting = True
     while inputting:
       sender_socket.sendall(stream.read(FRAMES_PER_BUFFER))
-      #time.sleep(FRAMES_PER_BUFFER/FRAMERATE)
-      #UDPCalling_GlobalItems.frames_buffer_in.put(stream.read(FRAMES_PER_BUFFER))
-
+  
     print("Microphone capture has finished")
 
 

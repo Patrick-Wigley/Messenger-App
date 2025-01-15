@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import threading
 
 # DEBUGGING 
 VERBOSE = True
@@ -43,6 +44,25 @@ def truncate_table(table_name):
 
 
 # ---------- Data Manipulative Functions     DML
+lock = threading.Lock()
+def lock_cursor(func):
+    def inner(**kwargs):
+        if kwargs:
+            try:
+                print(f"Kwargs in {inner.__name__} is: {kwargs}")
+                lock.acquire(True)
+                if kwargs:
+                    ret = func(kwargs)
+                else:
+                    ret = func()
+            finally:
+                lock.release()
+            return ret
+        
+        
+    return inner
+
+
 # No need to worry about SQL injection as these functions have no relation to forms, entries etc. Solely ran via undercovers
 def commit_changes(func):
     func()
@@ -108,7 +128,7 @@ def update_account_login_attempt(**kwargs):
                    """)
     conn.commit()
 
-
+@lock_cursor
 def get_account_details(kwargs) -> list:
     if check_columns_exist(kwargs):
         # Passed test
@@ -117,17 +137,17 @@ def get_account_details(kwargs) -> list:
                 WHERE {''.join([kv[0] + '=' + "'" + kv[1] + "'" + 'AND' if (index != len(kwargs)-1) else kv[0] + '=' + "'" + kv[1] + "'" for index, kv in enumerate(kwargs.items())])}
                 """)
         return query_results.fetchall()
-
-def get_account_names_and_ids(username = None, ID = None) -> list:
-    if username:
+@lock_cursor
+def get_account_names_and_ids(kwargs) -> list:
+    if kwargs["username"]:
         query_results = cursor.execute(f""" 
                 SELECT ID, username FROM {ACCOUNTS_TABLE_NAME}
-                WHERE username LIKE '{username}%'
+                WHERE username LIKE '{kwargs['username']}%'
                 """)
     else:
         query_results = cursor.execute(f""" 
                 SELECT ID, username FROM {ACCOUNTS_TABLE_NAME}
-                WHERE ID='{ID}'
+                WHERE ID='{kwargs['id']}'
                 """)
 
     return query_results.fetchall()
@@ -139,8 +159,8 @@ def get_top_table(table_name, top=5) -> list:
                 """)
     return query_results.fetchall()
 
-
-def insert_into_account(**kwargs) -> bool:
+@lock_cursor
+def insert_into_account(kwargs) -> bool:
     """
     returns
         (True|False): Depending on if sql insert was successful 
@@ -164,7 +184,8 @@ def insert_into_account(**kwargs) -> bool:
             print(f"[DB ERROR]: {e}")
             return False
 
-def change_account_password(**kwargs) -> bool:
+@lock_cursor
+def change_account_password(kwargs) -> bool:
     if check_columns_exist(kwargs):
         try:
             cursor.execute(f"""
@@ -175,7 +196,9 @@ def change_account_password(**kwargs) -> bool:
             print(f"[DB ERROR]: {e}")
             return False
 
-def check_users_ipv4(username):
+@lock_cursor
+def check_users_ipv4(kwargs):
+    username = kwargs["username"]
     query_result = cursor.execute(f"""
                     SELECT ipv4 
                     FROM {ACCOUNTS_TABLE_NAME}
@@ -194,29 +217,33 @@ def delete_account(username) -> None:
                 WHERE username='{username}'
                 """)
 
-
-def check_account_exists(username=None, email=None) -> bool:
+@lock_cursor
+def check_account_exists(kwargs) -> bool:
     """ Username & Email for accounts MUST be UNIQUE """
+
 
     emails_matching = [] 
     usernames_matching = []
 
-    if username:
-        username_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE username='{username}'")
+    if kwargs["username"]:
+        username_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE username='{kwargs['username']}'")
         usernames_matching = username_search.fetchall()
-    if email:
-        email_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE email='{email}'")
+    if kwargs["email"]:
+        email_search = cursor.execute(f"SELECT * FROM {ACCOUNTS_TABLE_NAME} WHERE email='{kwargs['email']}'")
         emails_matching = email_search.fetchall()
     
     return True if len(emails_matching + usernames_matching) != 0 else False
 
 ## CONTACTS
-
-def add_contact_relationship(id1, id2, paired_val) -> bool:
+@lock_cursor
+def add_contact_relationship(kwargs) -> bool:
     """
     returns
         (True|False): Depending on if sql insert was successful 
     """
+    
+    id1, id2, paired_val = kwargs["id1"], kwargs["id2"], kwargs["paired_val"]
+
     # IF THIS RECORD DOES NOT ALREADY EXIST THEN CREATE - (PREVENTS DUPLICATES)
     if not cursor.execute(f"""
                         SELECT * FROM {CONTACTS_TABLE_NAME} 
@@ -236,7 +263,9 @@ def add_contact_relationship(id1, id2, paired_val) -> bool:
     print("This contact relationship already exists")
     return True
 
-def get_all_contacts_chats(accounts_id) -> list:
+@lock_cursor
+def get_all_contacts_chats(kwargs) -> list:
+    accounts_id = kwargs["accounts_id"]
     try:
         query_results = cursor.execute(f"""
                 SELECT * FROM {CONTACTS_TABLE_NAME}
@@ -248,7 +277,9 @@ def get_all_contacts_chats(accounts_id) -> list:
         return False
 
 ## MESSAGES
-def get_messages_for_chat(sender_id, receiver_id) -> list:
+@lock_cursor
+def get_messages_for_chat(kwargs) -> list:
+    sender_id, receiver_id = kwargs["sender_id"], kwargs["receiver_id"]
     try:
         query_result = cursor.execute(f"""
                     SELECT * FROM {MESSAGES_TABLE_NAME}
@@ -259,8 +290,9 @@ def get_messages_for_chat(sender_id, receiver_id) -> list:
         print(f"[DB ERROR]: {e}")
         return False
 
-
-def add_message_for_chat(message_text, sender_id, receiver_id) -> bool:
+@lock_cursor
+def add_message_for_chat(kwargs) -> bool:
+    message_text, sender_id, receiver_id = kwargs["message_text"], kwargs["sender_id"], kwargs["receiver_id"]
     try:
         cursor.execute(f"""
                     INSERT INTO {MESSAGES_TABLE_NAME} (MessageText, SenderID, ReceiverID)
@@ -294,7 +326,7 @@ if __name__ == "__main__":
     #delete_all_from_table(CONTACTS_TABLE_NAME)
     print(f"Top15 accounts: {get_top_table(ACCOUNTS_TABLE_NAME, top=15)}\n\n")
     #print(f"Top10 contacts: {get_top_table(CONTACTS_TABLE_NAME, top=10)}\n\n")
-    #print(f"Top10 Messages: {get_top_table(MESSAGES_TABLE_NAME, top=10)}\n\n")
+    print(f"Top10 Messages: {get_top_table(MESSAGES_TABLE_NAME, top=10)}\n\n")
 
 
     #print(f"Query result is: {get_account_details({"username": 'Vegeta'})}")
@@ -323,15 +355,16 @@ if __name__ == "__main__":
         #             )
 
 
-        #overwrite_table(ACCOUNTS_TABLE_NAME,
-        #               """ID INTEGER PRIMARY KEY,
-        #                   email text NOT NULL,
-        #                   username text NOT NULL,
-        #                   password text NOT NULL,
-        #                   ipv4 text NOT NULL,
-        #                   join_date DATE,
-        #                   login_attempts INTEGER NOT NULL
-        #                   """)
+        overwrite_table(ACCOUNTS_TABLE_NAME,
+                        """ID INTEGER PRIMARY KEY,
+                            email text NOT NULL,
+                            username text NOT NULL,
+                            password text NOT NULL,
+                            ipv4 text NOT NULL,
+                            join_date DATE,
+                            login_attempts INTEGER NOT NULL,
+                            premium_member BIT NOT NULL
+                            """)
         print("\n\nENDING CHANGING DB CONFIGURE")
 
 else:
@@ -348,7 +381,8 @@ else:
                 password text NOT NULL,
                 ipv4 text NOT NULL,
                 join_date DATE,
-                login_attempts INTEGER NOT NULL
+                login_attempts INTEGER NOT NULL,
+                premium_member BIT NOT NULL
                 """)
 
     create_table(CONTACTS_TABLE_NAME, 

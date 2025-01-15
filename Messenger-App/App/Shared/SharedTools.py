@@ -34,7 +34,9 @@ class CMD:
     GETSAVECONTACTCHATS = "GetSavedContactsChats"
     GETMESSAGEHISTORY = "GetMessagesHistory"
     SENDMESSAGE = "SendMessage"
+    UPDATE_CHAT_LOG_LIVE = "UpdateChatLogLive"
     EXIT = "exit"
+
 
     REQUEST_OUT_CMDS = [
         CALLPERSON,
@@ -49,6 +51,7 @@ class CMD:
     # SERVER-SPECIFIC Commands
     LIVECHAT = "LiveChat"
     BROADCAST = "BroadCast"
+    BROADCAST_NOT_ALLOWED = "BroadCastNotAllowed"
     SERVER_SPECIFIC = [
         LIVECHAT,
         BROADCAST      
@@ -75,7 +78,8 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
             #print(f"GOT SEG COUNT DATA: {seg_count_data}")
             _, args = extract_cmd(seg_count_data)
             seg_count = args[0]
-            print(f"SEG COUNT EXPECTING IS: {seg_count}")
+            if verbose:
+                print(f"SEG COUNT EXPECTING IS: {seg_count}")
 
         else:
             print("SOMETHING WENT WRONG!!")
@@ -110,7 +114,7 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
             chunks_concatenated += chunks_actual_data
 
 
-        if decrypt_data:
+        if decrypt_data and verbose:
             print(f"Decrypted following: {chunks_concatenated}")
 
 
@@ -176,8 +180,8 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
             conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGLEN, args=len(data_ready_to_send)).encode("utf-8")))
             conn.send(data_ready_to_send)
         
-        
-        print(f"#~#~ TRANSMITTING CMD = '{cmd}'~#~# \n Segments transmitted: {seg_count}\n Segment Len: {seg_len}\n\n Data Transmitted: {data} \n\n Data Encrypted (Actual Data Sent): {encrypted_chunks}\n\n")
+        if verbose:
+            print(f"#~#~ TRANSMITTING CMD = '{cmd}'~#~# \n Segments transmitted: {seg_count}\n Segment Len: {seg_len}\n\n Data Transmitted: {data} \n\n Data Encrypted (Actual Data Sent): {encrypted_chunks}\n\n")
         return True
     
     except socket.error as e:
@@ -189,7 +193,7 @@ def setup_chunk_to_send(data: bytes) -> bytes:
     data_in_fixed_chunk = data + ((RECEIVE_AMOUNT - len(data)) * b' ')
     return data_in_fixed_chunk
 
-def format_ic_cmd(cmd: str, args: Any) -> str:
+def format_ic_cmd(cmd: str, args: Any = None) -> str:
     return f"#IC[{cmd}] ({args})"
 
 
