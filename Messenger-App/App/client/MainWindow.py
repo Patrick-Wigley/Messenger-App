@@ -179,8 +179,7 @@ class MainWindow:
             new_msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
             self.ui.verticalLayout_chat_history.addWidget(new_msg)
     def handle_update_chat_log_live(self, id_receiving_from):
-        print(self.ui.Home_InnerSW.currentWidget() == self.ui.Chat)
-        print(f"{self.current_chat_opened_with[0]} == {id_receiving_from}")
+
         if self.ui.Home_InnerSW.currentWidget() == self.ui.Chat and str(self.current_chat_opened_with[0]) == id_receiving_from:
             # Only refresh if chat is open with person receiving message from
             self.select_enter_chats_btn(self.current_chat_opened_with)

@@ -6,7 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 
 from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
-
+from rsa import DecryptionError
 
 # CONSTANTS
 DEBUG = False
@@ -84,44 +84,47 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
         else:
             print("SOMETHING WENT WRONG!!")
 
-        chunks_concatenated = ""
-        for _ in range(seg_count):
-            seg_len_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
-            if CMD.SEGLEN in seg_len_data:
-                _, args = extract_cmd(seg_len_data)
-                receive_amount = args[0]
-            else:
-                print("SOMETHING WENT WRONG")
+        try:
+            chunks_concatenated = ""
+            for _ in range(seg_count):
+                seg_len_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+                if CMD.SEGLEN in seg_len_data:
+                    _, args = extract_cmd(seg_len_data)
+                    receive_amount = args[0]
+                else:
+                    print("SOMETHING WENT WRONG")
 
-            # RECEIVING data
-            received_data = conn.recv(receive_amount)
+                # RECEIVING data
+                received_data = conn.recv(receive_amount)
 
 
-            # DECRYPTING &&/|| DECODING TO STRING
-            if decrypt_data:
-                data_chunk = decrypt(received_data, priv_key).decode(ENCODE_FORMAT)
+                # DECRYPTING &&/|| DECODING TO STRING
+                if decrypt_data:
+                    data_chunk = decrypt(received_data, priv_key).decode(ENCODE_FORMAT)
+                    if verbose:
+                        print(f"Encrypted data received = {received_data} \nDecrypted data = {data_chunk}")
+                else:
+                    # Not Decrypting
+                    data_chunk = received_data.decode(ENCODE_FORMAT)
+
+
+                chunk_id, chunk_size, chunks_actual_data  = extract_segment_data(data_chunk)
                 if verbose:
-                    print(f"Encrypted data received = {received_data} \nDecrypted data = {data_chunk}")
-            else:
-                # Not Decrypting
-                data_chunk = received_data.decode(ENCODE_FORMAT)
+                    print(f"[DEBUG - SEGMENTING]: \n[ChunkID]: {chunk_id} & [ChunkSize]: {chunk_size} \n {chunks_actual_data} ")
+
+                chunks_concatenated += chunks_actual_data
 
 
-            chunk_id, chunk_size, chunks_actual_data  = extract_segment_data(data_chunk)
-            if verbose:
-                print(f"[DEBUG - SEGMENTING]: \n[ChunkID]: {chunk_id} & [ChunkSize]: {chunk_size} \n {chunks_actual_data} ")
-
-            chunks_concatenated += chunks_actual_data
+            if decrypt_data and verbose:
+                print(f"Decrypted following: {chunks_concatenated}")
 
 
-        if decrypt_data and verbose:
-            print(f"Decrypted following: {chunks_concatenated}")
+            #print(f"POST SEGEMENTATION - {chunks_concatenated}")
+            # EXTRACTING COMMANDS & RETURNING
+            return extract_cmd(chunks_concatenated)
+        except DecryptionError as e:
+            print("Decryption failed?")
 
-
-        #print(f"POST SEGEMENTATION - {chunks_concatenated}")
-        # EXTRACTING COMMANDS & RETURNING
-        return extract_cmd(chunks_concatenated)
-    
     except socket.error as e:
         print(f"[ABRUPT DISCONNECTION]: IN {handle_recv.__name__}\n{e}")
         return None
