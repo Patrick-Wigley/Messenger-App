@@ -119,14 +119,14 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
                 print(f"Decrypted following: {chunks_concatenated}")
 
 
-            #print(f"POST SEGEMENTATION - {chunks_concatenated}")
             # EXTRACTING COMMANDS & RETURNING
             return extract_cmd(chunks_concatenated)
-        except DecryptionError as e:
-            print("Decryption failed?")
+        except DecryptionError as _:
+            print(f"[Decryption was not complete]: IN {handle_recv.__name__}")
+            return None
 
-    except socket.error as e:
-        print(f"[ABRUPT DISCONNECTION]: IN {handle_recv.__name__}\n{e}")
+    except socket.error as _:
+        print(f"[ABRUPT DISCONNECTION]: IN {handle_recv.__name__}")
         return None
 
 
@@ -260,7 +260,7 @@ def convert_to_pkcs(pub):
 def convert_from_pkcs(pub_pkcs: str):
     return convert_to_key_from_pkcs(pub_pkcs)
 
-def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False) :
+def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False):
     others_public_key = None
 
     sent_key_to_client = False
@@ -296,6 +296,8 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
 
                     else:
                         print(f"[{handle_pubkey_share.__name__}] GOT SOMETHING UNEXPECTED - {result}")
+                else:
+                    return None
             else:
                 # The key sharing session is SUCCESSFULLY finished
                 return others_public_key

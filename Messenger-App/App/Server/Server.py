@@ -93,7 +93,7 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
           
         print(f"Waiting for login details at: {addr}")
         result = handle_recv(conn, addr, priv_key=pub_priv_keys[1])
-        if result:
+        if result != None:
             cmd, args = result
             if cmd == CMD.LOGIN:
                 result = handle_client_login(conn, addr, pub_priv_keys, cmd, args)
@@ -119,7 +119,9 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
                         handle_send(conn, addr, cmd=cmd, args=False, pub_key=pub_priv_keys[0])
                 ################
         else:
-            return None
+            break
+    
+    return None
         
 
 def handle_client(conn, addr):
@@ -137,8 +139,7 @@ def handle_client(conn, addr):
     clients_account = handle_client_auth(conn, addr, (clients_pub_key, priv_key))
 
     if clients_account:
-        print(f"(Account {clients_account}) sucessfully logged in at ({addr}) ")
-        print(f"this clients ID is {clients_account.id}")
+        print(f"User {clients_account} sucessfully logged in at {addr} ")
         clients_ipv4_location_details = (clients_account.id, addr)
         clients_conn_pubkey_details = (clients_account.id, clients_account.username, conn, clients_pub_key)
         
@@ -223,7 +224,7 @@ def handle_client(conn, addr):
                         handle_send(conn=conn, cmd=CMD.BROADCAST_NOT_ALLOWED, pub_key=clients_pub_key)
 
                 else:
-                    print("Received unkwown cmd - Is this implemented yet?")
+                    print(f"Received: {result}")
                
 
 
@@ -231,10 +232,11 @@ def handle_client(conn, addr):
                     pass
 
             else:
-                print(f"Received unknown data? \n-Connection: {addr} \n-Data: {received}")
+                print(f"Received unexpected: \n- At Connection: {addr} \n- Data: {received}")
                 break
 
         # Post session clean-up
+        print(f"User '{clients_account.username}' at '{addr[0]}:{addr[1]}' is disconnecting")
         current_ipv4s_in_use.remove(clients_ipv4_location_details)
         current_conns_in_use.remove(clients_conn_pubkey_details)
     else:
