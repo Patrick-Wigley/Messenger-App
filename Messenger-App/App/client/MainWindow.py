@@ -2,7 +2,7 @@ import sys
 
 from Client import *
 import GlobalItems
-
+from pathlib import Path
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, 
                              QPushButton, QLabel)
@@ -268,11 +268,15 @@ class MainWindow:
         self.ui.LoginAndRegister_InnerSW.setCurrentWidget(self.ui.Login)
 
         # Cache
-        with open("client/cache.txt", "r") as cached_login:
-            data = cached_login.read()
-            username, password = str(data).split(",")
-            self.ui.log_username_entry.setText(username)
-            self.ui.log_password_entry.setText(password)
+        cache_file = Path("client\\cache.txt")
+        if cache_file.exists():
+            with open("client\\cache.txt", "r") as cached_login:
+                data = cached_login.read()
+                username, password = str(data).split(",")
+                self.ui.log_username_entry.setText(username)
+                self.ui.log_password_entry.setText(password)
+
+        
 
 
         # Setup buttons
