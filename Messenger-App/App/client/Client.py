@@ -3,6 +3,7 @@ import socket
 import threading
 import sys
 import os
+from pathlib import Path
 import rsa
 
 # MESSENGER APP MODULES
@@ -18,16 +19,19 @@ from Shared.SharedTools import (CMD,
                            gen_keys)
 
 
+file = Path("Shared\\details")
+if file.exists():
+    # Get stored IPV4 of servers location
+    with open("Shared\\details", "r") as file:
+        data = file.read()
+        if data:
+            ip, server_ip = data.split(",")
+            IP = ip
+            SERVER_IP = server_ip
+else:
+    IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
+    SERVER_IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
 
-# Get stored IPV4 of servers location
-with open("Shared\\details", "r") as file:
-    data = file.read()
-    if data:
-        IP = data
-        SERVER_IP = data
-    else:
-        IP = input("Devices assigned IP on subnet ->: ") #socket.gethostbyname(socket.gethostname())
-        SERVER_IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 PORT = 5055
@@ -55,10 +59,10 @@ def login_handle() -> bool:
                     if "SUCCESS" in args[0]:
                         # Successfully logged into account
                         # stores login for when logging in again
-                        with open("cache.txt", "w") as cached_login:
+                        with open("client\\cache.txt", "w") as cached_login:
                             # NOTE: FINISH USING JSON
                             _, args = extract_cmd(inputted_account_details)
-                            cached_login.write(f"{args}")
+                            cached_login.write(f"{args[0]},{args[1]}")
                             cached_login.close()
                         GlobalItems.logged_in = True
                         
@@ -76,11 +80,17 @@ def login_handle() -> bool:
                 else:
                     print(f"Received incorrect data from server? {received}")
 
+def save_ip_details():
+    with open("Shared\\details", "w") as file:
+        file.write(f"{IP},{SERVER_IP}")
+        file.close()
 
 def handle_connect():
     try:
         client.connect(SERVER_LOCATION)
         print(f"Successfully Connected to server at {SERVER_LOCATION}")
+        save_ip_details()
+
     except socket.error as e:
         print(e)
         sys.exit()
