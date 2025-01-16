@@ -56,6 +56,8 @@ class CMD:
         LIVECHAT,
         BROADCAST      
     ]
+    STILL_CONNECTED = "StillConnected"
+
 
 
 
@@ -267,8 +269,6 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
     if bi_directional_share:
         sent_key_to_client = True
     got_key_from_client = False
-
-
    
     send_result = handle_send(conn, addr, cmd="RequestingPubKey", encrypt_data=False)
     if send_result:
@@ -297,6 +297,7 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
                     else:
                         print(f"[{handle_pubkey_share.__name__}] GOT SOMETHING UNEXPECTED - {result}")
                 else:
+                    print(f"Ending key share on: {result} - Connection may have been cancelled")
                     return None
             else:
                 # The key sharing session is SUCCESSFULLY finished

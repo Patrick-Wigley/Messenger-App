@@ -25,7 +25,7 @@ from Shared.SharedTools import (CMD,
 
 
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-with open("Shared\\details", "r") as file:
+with open("Server\\details", "r") as file:
     data = file.read()
     if data:
         IP = data
@@ -35,6 +35,7 @@ with open("Shared\\details", "r") as file:
 PORT = 5055
 ADDR = (IP, PORT)
 server.bind(ADDR)
+
 
 # NOTE: THIS NEEDS TO BE USED SYNCHRONOUSLY
 
@@ -171,8 +172,9 @@ def handle_client(conn, addr):
                 elif cmd == "SendMessage":
                     sender_id=clients_account.id
                     receiver_id = args[1]
-                    print("Got send message")
-                    result = MessageManager.handle_send_message(message=args[0], sender_id=sender_id, receiver_id=receiver_id)
+                    
+                    message_prefixed = f"[{clients_account.username}] {args[0]}"
+                    result = MessageManager.handle_send_message(message=message_prefixed, sender_id=sender_id, receiver_id=receiver_id)
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=result, pub_key=clients_pub_key)
                     # IF RECEIVER IS ONLINE, UPDATE IN REAL-TIME FOR THEM
                     for id, _, connection, key in current_conns_in_use:
@@ -223,9 +225,11 @@ def handle_client(conn, addr):
                         print("Account is NOT allowed to use this feature")
                         handle_send(conn=conn, cmd=CMD.BROADCAST_NOT_ALLOWED, pub_key=clients_pub_key)
 
+                elif cmd == CMD.STILL_CONNECTED:
+                    print("Connect is still alive")
                 else:
                     print(f"Received: {result}")
-               
+                    
 
 
                 if cmd == "acceptContact":
@@ -233,6 +237,9 @@ def handle_client(conn, addr):
 
             else:
                 print(f"Received unexpected: \n- At Connection: {addr} \n- Data: {received}")
+                if not handle_check_connection_still_active(conn, priv_key):
+                        print("Connection not sending")
+                        break
                 break
 
         # Post session clean-up
@@ -242,7 +249,11 @@ def handle_client(conn, addr):
     else:
         print(f"Client at {addr} Failure to login")
     
-    
+def handle_check_connection_still_active(conn, key) -> bool:
+    if handle_send(conn, cmd=CMD.STILL_CONNECTED, pub_key=key):
+        return True
+    else:
+        return False
 
 
 def handle_incoming_connections():

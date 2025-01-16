@@ -49,7 +49,7 @@ def lock_cursor(func):
     def inner(**kwargs):
         if kwargs:
             try:
-                print(f"Kwargs in {inner.__name__} is: {kwargs}")
+                #print(f"Kwargs in {inner.__name__} is: {kwargs}")
                 lock.acquire(True)
                 if kwargs:
                     ret = func(kwargs)
