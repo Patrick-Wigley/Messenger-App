@@ -20,10 +20,10 @@ from Shared.SharedTools import (CMD,
                            gen_keys)
 
 
-file = Path("Shared\\details")
+file = Path(GlobalItems.IPS_FILE_LOCATION)
 if file.exists():
     # Get stored IPV4 of servers location
-    with open("Shared\\details", "r") as file:
+    with open(GlobalItems.IPS_FILE_LOCATION, "r") as file:
         data = file.read()
         if data:
             ip, server_ip = data.split(",")
@@ -46,40 +46,15 @@ kill_all_non_daemon = False
 server_specific_buffer = []
 
 
-# def login_handle(autoconnect) -> bool:
-#     """ Ran before main socket communications occurs, handles login """
-#     while not GlobalItems.logged_in:
-#         inputted_account_details = None if len(GlobalItems.request_out_buffer) == 0 else GlobalItems.request_out_buffer.pop()
-#         if inputted_account_details:
-#             handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=servers_session_pub_key, verbose=True)
-            
-#             received = handle_recv(client, SERVER_LOCATION, priv_key=private_key)
-#             if received:
-#                 cmd, args = received
-#                 if cmd == CMD.LOGIN or cmd == CMD.REGISTER:
-#                     if "SUCCESS" in args[0]:
-#                         # Successfully logged into account
-#                         # stores login for when logging in again
-#                         with open("client\\cache.txt", "w") as cached_login:
-#                             # NOTE: FINISH USING JSON
-#                             _, args = extract_cmd(inputted_account_details)
-#                             cached_login.write(f"{args[0]},{args[1]}")
-#                             cached_login.close()
-#                         GlobalItems.logged_in = True
-                        
-#                         print(f"Success on {cmd}")
-#                         # Let window know
-#                         if cmd == CMD.LOGIN:
-#                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('_', True)")
-#                         else:
-#                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('_', True)")
-#                     elif "FAIL" in args[0]:
-#                         if cmd == CMD.LOGIN:
-#                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('Username_or_Password_is_incorrect', False)")
-#                         else:
-#                             GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('Username_or_Email_is_taken', False)")
-#                 else:
-#                     print(f"Received incorrect data from server? {received}")
+
+def save_credentials_cache(username_and_password: list) -> None:
+    # stores login for when logging in again
+    with open(GlobalItems.CREDENTIAL_CACHE_FILE_LOCATION, "w") as cached_login:
+        # NOTE: FINISH USING JSON
+        username, password = username_and_password[0], username_and_password[1]
+        cached_login.write(f"{username},{password}")
+        cached_login.close()
+
 
 def handle_register(inputted_account_details):
     handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=servers_session_pub_key)
@@ -88,19 +63,20 @@ def handle_register(inputted_account_details):
     if received:
         cmd, args = received
         if cmd == CMD.REGISTER:
-            if "SUCCESS" in args[0]:
+            if args[0]:
                 GlobalItems.logged_in = True
                 print(f"Success on {cmd}")
+                save_credentials_cache(extract_cmd(inputted_account_details)[1])
+
                 GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('_', True)")
             else:
                 GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('Username_or_Email_is_taken', False)")
 
-
 def handle_login(autoconnect, inputted_account_details=None):
     if autoconnect:
-        cache_file = Path("client\\cache.txt")
+        cache_file = Path(GlobalItems.CREDENTIAL_CACHE_FILE_LOCATION)
         if cache_file.exists():
-            with open("client\\cache.txt", "r") as cached_login:
+            with open(GlobalItems.CREDENTIAL_CACHE_FILE_LOCATION, "r") as cached_login:
                 username, password = str(cached_login.read()).split(",")
                 handle_send(client, SERVER_LOCATION, 
                             request_out=f"#IC[{CMD.LOGIN}]('{username}', '{password}')",
@@ -115,22 +91,16 @@ def handle_login(autoconnect, inputted_account_details=None):
     if received:
         cmd, args = received
         if cmd == CMD.LOGIN:
-            if "SUCCESS" in args[0]:
+            if args[0]:
+                # Successfully logged into account
                 if not autoconnect:
-                    # Successfully logged into account
-                    # stores login for when logging in again
-                    with open("client\\cache.txt", "w") as cached_login:
-                        # NOTE: FINISH USING JSON
-                        _, args = extract_cmd(inputted_account_details)
-                        cached_login.write(f"{args[0]},{args[1]}")
-                        cached_login.close()
-                
+                    save_credentials_cache(extract_cmd(inputted_account_details)[1])
                     # Let window know
                     GlobalItems.interpreted_server_feedback_buffer.append("#IC[login]('_', True)")
 
                 GlobalItems.logged_in = True
                 print(f"Success on {cmd}")
-            elif "FAIL" in args[0]:
+            else:
                 if autoconnect:
                     print("[RELOGIN WAS NOT ACCEPTED]")
                     sys.exit()
@@ -207,9 +177,7 @@ def server_handle():
 
     print("Logged in" if GlobalItems.logged_in else "NOT LOGGED IN")
 
-    # Spin up two threads, one for pushing messages out to the server, another for receiving messages 
-
-    # MAIN NETWORK LOOP FOR PROGRAM - Handles all ingoings & outgoings of commands & their respective data
+    # Spin up two threads, one for pushing messages out to the server, another for receiving messages from server
     if GlobalItems.logged_in:
         t_requests_out = threading.Thread(target=handle_requests_out)
         t_requests_in = threading.Thread(target=handle_requests_in)
@@ -223,70 +191,74 @@ def server_handle():
         print("Failed to log in. Bye!")
 
 
-def handle_requests_out():
-    global servers_session_pub_key
-    
+def loop_functions(func):
+    def inner():
+        while True:
+            result = func()
+            if result == False:
+                break
+    return inner
+
+@loop_functions
+def handle_requests_out() -> bool:
     """ Will run in its own thread """
-    while True:
-        
-        # Logic here is if buffer has something to send to server, will shoot it off & receive something back
+    global servers_session_pub_key
 
-        # Current setup is stack - (in final product this should ideally be queued)
-        # request_out will contain the command set from the window-module to do something with it here networkly
-        request_out = None if len(GlobalItems.request_out_buffer) == 0 else GlobalItems.request_out_buffer.pop()
-        if request_out and GlobalItems.logged_in:
-                if CMD.EXIT in request_out:
-                        handle_exit()
-                        break
-                else:
-                    handle_send(conn=client, request_out=request_out, pub_key=servers_session_pub_key)
-
-
-def handle_requests_in():
-    global private_key
-    while True:
-        received = handle_recv(client, SERVER_LOCATION, priv_key=private_key)
-        if received:
-            cmd, args = received
-
-            if cmd == CMD.CALLPERSON:
-              # Needs arg of person sending to & this persons id
-                handle_call_person(args)
-
-            elif cmd == CMD.SEARCHCONTACT:
-                handle_search_contacts(args)
-
-            elif cmd == CMD.SAVECONTACT:
-                handle_save_contact(args)
-
-            elif cmd == CMD.GETSAVECONTACTCHATS:
-                handle_get_chats(args) # MAKE BUTTON TO GET THIS REQUEST GOING
-
-            elif cmd == CMD.GETMESSAGEHISTORY:
-                handle_get_chats_history(args)
-
-            elif cmd == CMD.SENDMESSAGE:
-                handle_send_message(args)
-
-            elif cmd == CMD.UPDATE_CHAT_LOG_LIVE:
-                GlobalItems.window_event_trigger_buffer.append(format_ic_cmd(CMD.UPDATE_CHAT_LOG_LIVE, args))
-
-            elif cmd == CMD.BROADCAST:
-
-                GlobalItems.window_event_trigger_buffer.append(format_ic_cmd(CMD.BROADCAST, args))
-                print(f"BROADCAST: {args[0]}")
-            elif cmd == CMD.BROADCAST_NOT_ALLOWED:
-                GlobalItems.window_event_trigger_buffer.append(format_ic_cmd(CMD.BROADCAST_NOT_ALLOWED))
-
-            elif cmd == CMD.STILL_CONNECTED:
-                GlobalItems.request_out_buffer.append(format_ic_cmd(CMD.STILL_CONNECTED))
-
+    # request_out will contain the command sent from the window-module
+    request_out = None if len(GlobalItems.request_out_buffer) == 0 else GlobalItems.request_out_buffer.pop()
+    if request_out and GlobalItems.logged_in:
+            if CMD.EXIT in request_out:
+                    handle_exit()
+                    return False # Break Loop
             else:
-                print(f"Received something unexpcted from server: {received}")
+                handle_send(conn=client, request_out=request_out, pub_key=servers_session_pub_key)
+    return True # Do not break loop
 
+@loop_functions
+def handle_requests_in() -> bool:
+    """ Will run in its own thread """
+    global private_key
+  
+    received = handle_recv(client, SERVER_LOCATION, priv_key=private_key)
+    if received:
+        cmd, args = received
+
+        if cmd == CMD.CALLPERSON:
+            # Needs arg of person sending to & this persons id
+            handle_call_person(args)
+
+        elif cmd == CMD.SEARCHCONTACT:
+            handle_search_contacts(args)
+
+        elif cmd == CMD.SAVECONTACT:
+            handle_save_contact(args)
+
+        elif cmd == CMD.GETSAVECONTACTCHATS:
+            handle_get_chats(args) # MAKE BUTTON TO GET THIS REQUEST GOING
+
+        elif cmd == CMD.GETMESSAGEHISTORY:
+            handle_get_chats_history(args)
+
+        elif cmd == CMD.SENDMESSAGE:
+            handle_send_message(args)
+
+        elif cmd == CMD.UPDATE_CHAT_LOG_LIVE:
+            GlobalItems.window_event_trigger_buffer.append(format_ic_cmd(CMD.UPDATE_CHAT_LOG_LIVE, args))
+
+        elif cmd == CMD.BROADCAST:
+            GlobalItems.window_event_trigger_buffer.append(format_ic_cmd(CMD.BROADCAST, args))
+        elif cmd == CMD.BROADCAST_NOT_ALLOWED:
+            GlobalItems.window_event_trigger_buffer.append(format_ic_cmd(CMD.BROADCAST_NOT_ALLOWED))
+
+        elif cmd == CMD.STILL_CONNECTED:
+            GlobalItems.request_out_buffer.append(format_ic_cmd(CMD.STILL_CONNECTED))
         else:
-            # Server has turned off - Begin auto-reconnecting 
-            handle_auto_reconnect() # Will return once succesfully reconnected & logged in
+            print(f"Received something unexpcted from server: {received}")
+    else:
+        # Server has turned off - Begin auto-reconnecting 
+        handle_auto_reconnect() # Will return once succesfully reconnected & logged in
+    
+    return True # Do not break loop
 
 def handle_auto_reconnect():
     global client

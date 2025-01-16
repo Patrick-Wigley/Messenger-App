@@ -144,9 +144,9 @@ class Ui_MainWindow(object):
         self.Chat_send_btn = QtWidgets.QPushButton(parent=self.Chat)
         self.Chat_send_btn.setGeometry(QtCore.QRect(480, 450, 81, 41))
         self.Chat_send_btn.setObjectName("Chat_send_btn")
-        self.loading_chat_history_label = QtWidgets.QLabel(parent=self.Chat)
-        self.loading_chat_history_label.setGeometry(QtCore.QRect(290, 50, 49, 16))
-        self.loading_chat_history_label.setObjectName("loading_chat_history_label")
+        self.loading_label = QtWidgets.QLabel(parent=self.Home_InnerSW)
+        self.loading_label.setGeometry(QtCore.QRect(290, 50, 49, 16))
+        self.loading_label.setObjectName("loading_label")
 
 
         self.chat_history_scroll_area.setWidget(self.chat_history_scrollAreaWidgetContents)
@@ -227,7 +227,7 @@ class Ui_MainWindow(object):
         self.refresh_btn.setText(_translate("MainWindow", "Refresh Chats"))
         self.Chat_back_btn.setText(_translate("MainWindow", "Back"))
         self.Chat_send_btn.setText(_translate("MainWindow", "Send"))
-        self.loading_chat_history_label.setText(_translate("MainWindow", "Loading"))
+        self.loading_label.setText(_translate("MainWindow", "Loading"))
         self.search_account_submit_btn.setText(_translate("MainWindow", "Search"))
         self.search_account_back_btn.setText(_translate("MainWindow", "Back"))
         self.menu_main_title.setText(_translate("MainWindow", "<html><head/><body><p><span style=\" font-size:26pt; font-weight:700; text-decoration: underline;\">UOD Messenger App</span></p></body></html>"))

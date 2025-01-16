@@ -82,28 +82,25 @@ class MainWindow:
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self.main_win)
 
-        self.current_chat_opened_with = None # This gets set to the (contact_id, contact_username) currently in
+        self.current_chat_opened_with = None # This is used to set to the (contact_id, contact_username) currently in
 
         # Sub-widgets
         self.setup_login_sw()
         self.setup_home_sw()
 
-        # NOTE: MainStackedWidget consists of inner SWs such as LoginAndRegisterSW & MainMenuSW - if confused again, variables of entries and so on are not encapsulated. 
-      
+        # NOTE: MainStackedWidget consists of inner SWs such as LoginAndRegisterSW & MainMenuSW - variables of entries, labels and so on are not encapsulated. 
         self.ui.MainStackedWidget.setCurrentWidget(self.ui.LoginAndRegistration)
 
-
         self.event_listener_t = EventListenerThread()
-        # SETUP EVENTS
+        # SETUP EVENTS - 'event_listener_t' Thread will execute these functions within this main window
         self.event_listener_t.broadcast_task.connect(self.handle_broadcast_request)
         self.event_listener_t.broadcast_fail_task.connect(self.handle_broadcast_fail)
         self.event_listener_t.send_chat_task.connect(self.handle_enter_message)
         self.event_listener_t.chat_history_task.connect(self.populate_dm_chat_history)
         self.event_listener_t.update_chat_history_task.connect(self.handle_update_chat_log_live)
         self.event_listener_t.save_contact_task.connect(self.handle_save_contact_response)
-
         self.event_listener_t.search_contact_task.connect(self.handle_search_acc_response)
-        self.event_listener_t.get_saved_contacts.connect(self.handle_get_contacts)
+        self.event_listener_t.get_saved_contacts.connect(self.handle_get_saved_contacts)
 
         self.event_listener_t.start()
 
@@ -111,13 +108,13 @@ class MainWindow:
     # Main Widget
     def setup_home_sw(self):
         self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats_List)
-        # Chats page - (main menu)        # HERE WILL HAVE TO GET CHATS FROM SERVER
         
-
+        # Contacts page - (main menu) 
         self.ui.newchat_btn.clicked.connect(self.submit_newchat_btn)
+        self.ui.broadcast_entry.returnPressed.connect(self.send_broadcast)
         
         # OLD REFRESH BUTTON MADE REDUNDANT
-        #self.ui.refresh_btn.clicked.connect(self.submit_refresh_chats_btn)
+        #self.ui.refresh_btn.clicked.connect(self.refresh_saved_contacts)
         self.ui.refresh_btn.setVisible(False)
 
         # Searching for new chat page
@@ -130,8 +127,6 @@ class MainWindow:
         self.ui.Chat_send_btn.clicked.connect(self.submit_enter_message)
         self.ui.Chat_back_btn.clicked.connect(self.return_to_contactchats_page)
         
-
-        self.ui.broadcast_entry.returnPressed.connect(self.send_broadcast)
 
 
     def send_broadcast(self):
@@ -146,10 +141,9 @@ class MainWindow:
 
     # Chat With Someone
     def submit_enter_message(self):
-        IC_CMD = "SendMessage"
         message = self.ui.enter_message_entry.text()
         send_to = self.current_chat_opened_with[0]
-        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{message}', '{send_to}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.SENDMESSAGE}]('{message}', '{send_to}')")
         
 
     def handle_enter_message(self, response):
@@ -160,18 +154,12 @@ class MainWindow:
 
 
     def select_call_person(self, contact_details):
-        # contact_details = (ID, Name)
-        
-        # Continue here
-        IC_CMD = "CallPerson"
-        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{contact_details[0]}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.CALLPERSON}]('{contact_details[0]}')")
 
 
     def select_enter_chats_btn(self, contact_details):
-        """ Open chat """
-        IC_CMD = "GetMessagesHistory"
-        contacts_id, contacts_username = contact_details
-        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]({contacts_id})")
+        contacts_id, _ = contact_details
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.GETMESSAGEHISTORY}]({contacts_id})")
         self.current_chat_opened_with = contact_details
 
         # CLEAR SEND MESSAGE BAR
@@ -179,10 +167,10 @@ class MainWindow:
         
         
         self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chat)
-        self.ui.loading_chat_history_label.setVisible(True)
+        self.ui.loading_label.setVisible(True)
 
     def populate_dm_chat_history(self, message_data, refresh_entire_chatlog=True):
-        self.ui.loading_chat_history_label.setVisible(False)
+        self.ui.loading_label.setVisible(False)
         if refresh_entire_chatlog:
             # Handle server feedback
     
@@ -192,11 +180,11 @@ class MainWindow:
 
             # POPULATE CHAT-LOG
             for msg_details in message_data:
-                _, msg_text, msg_sender, msg_receiver = msg_details
+                _, msg_text, msg_sender, _ = msg_details
                 msg = QLabel(f"{msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
                 self.ui.verticalLayout_chat_history.addWidget(msg)
         else:
-            _, msg_text, msg_sender, msg_receiver = message_data
+            _, msg_text, msg_sender, _ = message_data
             new_msg = QLabel(f"[{msg_sender}] {msg_text}", parent=self.ui.chat_history_scrollAreaWidgetContents)
             self.ui.verticalLayout_chat_history.addWidget(new_msg)
     def handle_update_chat_log_live(self, id_receiving_from):
@@ -208,10 +196,12 @@ class MainWindow:
 
 
     # GET SAVED CONTACTS (REFRESH CHATS)
-    def submit_refresh_chats_btn(self):
-        GlobalItems.request_out_buffer.append(f"#IC[{CMD.GETSAVECONTACTCHATS}]()")        
-    def handle_get_contacts(self, contacts):
-        # populate the "chat with contact" button(s) to chats list 
+    def refresh_saved_contacts(self):
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.GETSAVECONTACTCHATS}]()")   
+        self.ui.loading_label.setVisible(True)     
+    def handle_get_saved_contacts(self, contacts):
+        """populate the "chat with contact" button(s) to chats list""" 
+        self.ui.loading_label.setVisible(False)
         
         if contacts[0] != False:
             # CLEAR Contact list - (this prevents duplicates from coming up in the GUI)
@@ -247,11 +237,12 @@ class MainWindow:
 
     # SEARCH FOR A CONTACT (INPUT NAME AND RECEIVED LIST OF MATCHES)
     def search_account_btn_submit(self):
-        IC_CMD = "SearchContact"
         search_for = self.ui.search_account_entry.text()
         print(f"Searching for matching {search_for}")
-        GlobalItems.request_out_buffer.append(f"#IC[{IC_CMD}]('{search_for}')")
+        self.ui.loading_label.setVisible(True)
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.SEARCHCONTACT}]('{search_for}')")
     def handle_search_acc_response(self, matches):
+        self.ui.loading_label.setVisible(False)
         top_five_matches = []
         if matches[0] != False:
             # GET PAIRS
@@ -278,26 +269,27 @@ class MainWindow:
     def handle_save_contact_response(self, success):
         if success == True:
             self.ui.Home_InnerSW.setCurrentWidget(self.ui.Chats_List)
-            self.submit_refresh_chats_btn()
+            self.refresh_saved_contacts()
         else:
             print("Failed to save account???")
     ###########################################
 
 
-
+    # AUTHENTICATION 
     # Login & Register Widget
     def setup_login_sw(self):
         # Set the default widget - (login)
         self.ui.LoginAndRegister_InnerSW.setCurrentWidget(self.ui.Login)
 
         # Cache
-        cache_file = Path("client\\cache.txt")
+        cache_file = Path(GlobalItems.CREDENTIAL_CACHE_FILE_LOCATION)
         if cache_file.exists():
-            with open("client\\cache.txt", "r") as cached_login:
+            with open(GlobalItems.CREDENTIAL_CACHE_FILE_LOCATION, "r") as cached_login:
                 data = cached_login.read()
-                username, password = str(data).split(",")
-                self.ui.log_username_entry.setText(username)
-                self.ui.log_password_entry.setText(password)
+                if data:
+                    username, password = str(data).split(",")
+                    self.ui.log_username_entry.setText(username)
+                    self.ui.log_password_entry.setText(password)
 
         # Setup buttons
         # Modes buttons
@@ -316,6 +308,7 @@ class MainWindow:
 
     def submit_login_btn(self):
         GlobalItems.request_out_buffer.append(f"#IC[{CMD.LOGIN}]('{self.ui.log_username_entry.text()}', '{self.ui.log_password_entry.text()}')")
+        print("LOADING PLEASE WAIT")
         args = handle_server_feedback(cmd_searching_for=f"{CMD.LOGIN}")
 
         feedback_str, proceed = args
@@ -326,24 +319,27 @@ class MainWindow:
         else:
             # Load window for home page
             self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
-            self.submit_refresh_chats_btn()
+            self.refresh_saved_contacts()
                
    
 
     def submit_register_btn(self):
         print(f"CREATE ACCOUNT:     email: {self.ui.reg_email_entry.text()} username: {self.ui.reg_username_entry.text()} password: {self.ui.reg_password_entry.text()}")
-        GlobalItems.request_out_buffer.append(f"#IC[{CMD.REGISTER}]('{self.ui.reg_email_entry.text()}', '{self.ui.reg_username_entry.text()}', '{self.ui.reg_password_entry.text()}', '{self.ui.reg_preimum_code_entry.text()}')")
+        GlobalItems.request_out_buffer.append(f"#IC[{CMD.REGISTER}]('{self.ui.reg_username_entry.text()}', '{self.ui.reg_password_entry.text()}', '{self.ui.reg_email_entry.text()}', '{self.ui.reg_preimum_code_entry.text()}')")
+        print("LOADING PLEASE WAIT")
         args = handle_server_feedback(cmd_searching_for=f"{CMD.REGISTER}")
 
         feedback_str, proceed = args
         if proceed:
             self.ui.MainStackedWidget.setCurrentWidget(self.ui.Home)
-            self.submit_refresh_chats_btn()
+            self.refresh_saved_contacts()
         else:
             self.ui.server_feeback_label.setText(feedback_str)
             self.ui.reg_email_entry.setText("")
             self.ui.reg_username_entry.setText("")
             self.ui.reg_password_entry.setText("")
+    ######################### END OF AUTHENTICATION 
+
 
     def show(self):
         self.main_win.show()

@@ -56,7 +56,7 @@ def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, 
                     send_email(receiver_email=clients_account.email, 
                             data=f"Hi {args[0]}, you have logged in at a different location, check that this is you?", 
                             subject="New Login Location")
-            handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
+            handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
             return clients_account
         else:
             if False: #NOTE ADD BACK: 
@@ -66,17 +66,30 @@ def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, 
     return None
 
 def handle_client_register(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
-    clients_account = AccountManager.handle_register(email=args[0], username=args[1], password=args[2], ipv4=addr[0], premium_member=args[3])
+    print(args)
+    clients_account = AccountManager.handle_register(email=args[2], username=args[0], password=args[1], ipv4=addr[0], premium_member=args[3])
     if clients_account:
         if False: #NOTE ADD BACK
             send_email(receiver_email=clients_account.email, 
                     data=f"Welcome {args[1]} to the UOD Messenger app! Hosted at {IP}:{PORT} We have saved your account to this email. This social application is still in production!",
                     subject="The UOD Messenger App")
         
-
-        handle_send(conn, addr, cmd=cmd, args=["SUCCESS"], pub_key=pub_priv_keys[0])
+        handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
         return clients_account
     return None
+
+def handle_client_forgot_password(conn, addr, pub_priv_keys, cmd, args) -> None:
+    """NOT FINISHED"""
+    # NOT IMPLEMENTED YET
+    if cmd == "ForgottenLogin":
+        if AccountManager.handle_passwordreset(username=args[0]):
+            handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
+            
+        else:
+            handle_send(conn, addr, cmd=cmd, args=False, pub_key=pub_priv_keys[0])
+    ################
+
+
 
 def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
     """
@@ -91,11 +104,11 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
         - Only accepts 'IC[login] (username, password)' here.
     """
     while True:
-          
         print(f"Waiting for login details at: {addr}")
         result = handle_recv(conn, addr, priv_key=pub_priv_keys[1])
         if result != None:
             cmd, args = result
+            print(result)
             if cmd == CMD.LOGIN:
                 result = handle_client_login(conn, addr, pub_priv_keys, cmd, args)
                 if result:
@@ -108,17 +121,10 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
                 print(f"Received Something Unexpected in {handle_client_auth.__name__}: {result}")
                 return None
         
-            handle_send(conn, addr, cmd=cmd, args=["FAIL"], pub_key=pub_priv_keys[0])
+            handle_send(conn, addr, cmd=cmd, args=False, pub_key=pub_priv_keys[0])
 
             if False:
-                # NOT IMPLEMENTED YET
-                if cmd == "ForgottenLogin":
-                    if AccountManager.handle_passwordreset(username=args[0]):
-                        handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
-                        
-                    else:
-                        handle_send(conn, addr, cmd=cmd, args=False, pub_key=pub_priv_keys[0])
-                ################
+               handle_client_forgot_password(conn, addr, pub_priv_keys, cmd, args)
         else:
             break
     

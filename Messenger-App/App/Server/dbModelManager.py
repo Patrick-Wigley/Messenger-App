@@ -108,7 +108,6 @@ class AccountManager:
             __acc_instance = Account(__accounts[0])
             if __acc_instance.login_attempts > DEFAULT_ALLOWED_LOGIN_ATTEMPTS:
                 print("User attempted to login to account that's LOCKED")
-                # NOTE - Need to sent SMTP to users email to unlock account - (go through a change password)
                 __acc_instance.locked = True
                 return __acc_instance   # WONT WORK AS ACCOUNT IS LOCKED
 

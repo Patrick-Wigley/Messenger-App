@@ -1,6 +1,7 @@
 # Used throughout 'GUI.py' & 'Client.py'
 logged_in = False
-server_pub_key = ""
+CREDENTIAL_CACHE_FILE_LOCATION = "client\\cache.txt"
+IPS_FILE_LOCATION = "Shared\\details"
 
 request_out_buffer = []
 request_in_buffer = []

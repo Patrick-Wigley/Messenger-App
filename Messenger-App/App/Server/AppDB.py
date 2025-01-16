@@ -2,6 +2,7 @@ import sqlite3
 import os
 import threading
 
+
 # DEBUGGING 
 VERBOSE = True
 
