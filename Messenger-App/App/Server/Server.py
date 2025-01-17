@@ -14,6 +14,7 @@ import threading
 import smtplib
 import sys
 import os
+from pathlib import Path
 
 # MESSENGER APP MODULES
 from dbModelManager import AccountManager, Account, ContactsManger, MessageManager
@@ -266,17 +267,22 @@ if __name__ == "__main__":
         print("Debugging Mode is active")
     else:
         # Begin 
-        
+        IPS_FILE_LOCATION = "Shared\\details"
+
+
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        with open("Server\\details", "r") as file:
-            data = file.read()
-            if data:
-                IP = data
-            else:
-                input("Servers assigned IP on subnet ->: ") 
+        file = Path(IPS_FILE_LOCATION)
+        if file.exists():
+            with open(IPS_FILE_LOCATION, "r") as file:
+                data = file.read()
+                if data:
+                    IP = data.split(",")[0]
+        else:
+            IP = input("Servers assigned IP on subnet ->: ") 
                 
         PORT = 5055
         ADDR = (IP, PORT)
+        print(f"[SERVER]: Binding to address {ADDR}")
         server.bind(ADDR)
 
 

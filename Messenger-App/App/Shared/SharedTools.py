@@ -93,7 +93,7 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
 
     try:
         # DEFENCE AGAINST REPLAY ATTACK - RECEIVE UNIQUE NUMBER FOR PACKET
-        packet_id = conn.recv(RECEIVE_AMOUNT).decode(ENCODE_FORMAT)
+        packet_id = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
 
         # RECEIVE SEGMENT COUNT ABOUT TO RECEIVE
         seg_count = 0
@@ -154,8 +154,11 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
                 # Keep track of this packet sent
                 packet_ids_used.append(data_with_packet_id)
                 
-                # EXTRACTING COMMANDS & RETURNING
-                return extract_cmd(chunks_concatenated)
+                if chunks_concatenated:
+                    # EXTRACTING COMMANDS & RETURNING
+                    return extract_cmd(chunks_concatenated)
+                else:
+                    return None
             
 
         except DecryptionError as _:
@@ -180,14 +183,13 @@ def handle_send(conn:socket.socket, addr=None, cmd:Union[str, None] = None, args
         # FORMATTING
         if not request_out:
             data = format_ic_cmd(cmd=cmd, args=args)
-            
         else:
             data = request_out
         
         # Defend against replay attacks
         conn.send(setup_chunk_to_send(str(random.randint(-100000000, 1000000000)).encode(ENCODE_FORMAT)))
         #TODO - Use this print below to demonstrate replay attacks
-        conn.send(setup_chunk_to_send(str(2903).encode(ENCODE_FORMAT)))
+        # conn.send(setup_chunk_to_send(str(2903).encode(ENCODE_FORMAT)))
 
 
         # PRE-SHARE DATA SEGMENT COUNT
@@ -298,7 +300,7 @@ def handle_pubkey_share(conn:socket.socket, addr, sessions_generated_public_key:
         while True:
             if not sent_key_to_client or not got_key_from_client:
                 result = handle_recv(conn, addr, decrypt_data=False)
-            
+                
                 if result:
                     cmd, args = result
                     if cmd == CMD.SENDINGPUBKEY:
