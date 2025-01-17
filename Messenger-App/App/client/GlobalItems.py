@@ -10,3 +10,5 @@ request_in_buffer = []
 """It contains a processed feedback (from the server) for what action to take next in the application side"""
 interpreted_server_feedback_buffer = []
 window_event_trigger_buffer = []
+
+

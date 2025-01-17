@@ -26,6 +26,11 @@ def extract_cmd(data) -> tuple:
 def hash_data(data) -> str:
     return sha256(data.encode("utf-8")).hexdigest() # NOTE HASH THIS
 
+
+
+
+
+# NOT USED 
 def caesar_cipher_value(data, encrypt):
     MAX = 122
     KEY = 9

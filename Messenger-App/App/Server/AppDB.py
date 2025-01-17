@@ -308,11 +308,10 @@ def add_message_for_chat(kwargs) -> bool:
 
 if __name__ == "__main__":
     # ~#~#~#~#~#~#~#~# DATABASE MANAGEMENT TOOL HERE #~#~#~#~#~#~#~#~
-    # Manually make changes to database, data stored, tests all here to db here - (untracked migrations)
+    # Manually make changes to database schema, data stored, tests here - (untracked migrations)
    
     #delete_all_accounts()
     
-
     #insert_into_account(email="testvegeta@gmail.com", username="Vegeta", password="saiyan", ipv4=14213, join_date="2024/10/31", login_attempts=0)
     #insert_into_account(email="testGoku@gmail.com", username="Goku", password="saiyan", ipv4=14211, join_date="2024/10/31", login_attempts=0)
 

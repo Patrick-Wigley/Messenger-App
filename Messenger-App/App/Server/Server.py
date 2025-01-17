@@ -164,7 +164,7 @@ def handle_client(conn, addr):
                     print(f"Closing connection with {addr}")
                     break
 
-                elif cmd == "CallPerson":
+                elif cmd == CMD.CALLPERSON:
                     # NOTE - Should determine session by looking at two peoples ID or groups ID
                     # args = [sessionID]
                     # SESSIONID SHOULD BE DENOTED USING THE 'pairing function' IN 'Ap_Tools.py'
@@ -175,7 +175,7 @@ def handle_client(conn, addr):
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=requested_clients_ipv4, pub_key=clients_pub_key)    
                 
                 
-                elif cmd == "SendMessage":
+                elif cmd == CMD.SENDMESSAGE:
                     sender_id=clients_account.id
                     receiver_id = args[1]
                     
@@ -189,9 +189,7 @@ def handle_client(conn, addr):
                             # Refresh chat-log for person being sent message (AS THEY'RE ONLINE)
                             handle_send(conn=connection, cmd=CMD.UPDATE_CHAT_LOG_LIVE, args=sender_id, pub_key=key)
                             
-
-
-                elif cmd == "SearchContact":
+                elif cmd == CMD.SEARCHCONTACT:
                     result = ContactsManger.handle_search_contact(username=args[0])
                     if result:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=[
@@ -201,15 +199,14 @@ def handle_client(conn, addr):
                     else:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=clients_pub_key)
 
-                elif cmd == "SaveContact":
+                elif cmd == CMD.SAVECONTACT:
                     add_contact_result = ContactsManger.handle_add_contact_relationship(thisID=clients_account.id, otherID=args[0], paired_value=pairing_function(int(clients_account.id), int(args[0])))
                     if add_contact_result:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=True, pub_key=clients_pub_key)
                     else:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=clients_pub_key)
                         
-
-                elif cmd == "GetSavedContactsChats": #GetContacts
+                elif cmd == CMD.GETSAVECONTACTCHATS: 
                     results = ContactsManger.handle_get_all_chats_for_contact(clients_account.id)
                     if results:
                         accounts = [ContactsManger.handle_search_contact(id=x[2])[0] for x in results]
@@ -218,7 +215,7 @@ def handle_client(conn, addr):
                     else:
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=False, pub_key=clients_pub_key)
 
-                elif cmd == "GetMessagesHistory":
+                elif cmd == CMD.GETMESSAGEHISTORY:
                     results = MessageManager.handle_get_chat_instance_messages(sender_id=clients_account.id, receiver_id=args[0])
                     handle_send(conn=conn, addr=addr, cmd=cmd, args=results, pub_key=clients_pub_key)
                 
@@ -234,7 +231,7 @@ def handle_client(conn, addr):
                 elif cmd == CMD.STILL_CONNECTED:
                     print("Connect is still alive")
                 else:
-                    print(f"Received: {result}")
+                    print(f"Received: {received}")
                     
 
 

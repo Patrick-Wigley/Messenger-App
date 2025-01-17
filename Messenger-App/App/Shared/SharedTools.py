@@ -63,6 +63,9 @@ class CMD:
 
 ################################
 
+# Would have to be persistent
+packet_ids_used = []
+
 # DATA TRANSMISSION 
 def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decrypt_data=True) -> Union[tuple, None]:
     """ 
@@ -72,9 +75,18 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
     Returns:
         tuple: ('cmd', (args' On SUCCESSFUL Transmission 
     """
-    
+    global packet_ids_used
+    # DEFENCE AGAINST REPLAY ATTACKS 
+    # If malicious user captures packet, not only will it be a segment of the actual data, but they would have to 
+    # send the appropriate (segment count packet) before hand (without all this, the packet sent as a 'Replay Attack'
+    # will be rendered in-usable here)
+
+ 
     try:
-        seg_count = None
+        packet_id = 
+        conns_and_ids_used
+
+        seg_count = 0
         seg_count_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
         if CMD.SEGCOUNT in seg_count_data:
             #print(f"GOT SEG COUNT DATA: {seg_count_data}")
@@ -149,6 +161,9 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
         else:
             data = request_out
         
+        # Defend against replay attacks
+        
+
 
         data_len = len(data)
         seg_len = 50
@@ -194,11 +209,10 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
         return False 
 
 def setup_chunk_to_send(data: bytes) -> bytes:
-    #RECEIVE_AMOUNT = 1024
     data_in_fixed_chunk = data + ((RECEIVE_AMOUNT - len(data)) * b' ')
     return data_in_fixed_chunk
 
-def format_ic_cmd(cmd: str, args: Any = None) -> str:
+def format_ic_cmd(cmd: str, args: Any = "") -> str:
     return f"#IC[{cmd}] ({args})"
 
 

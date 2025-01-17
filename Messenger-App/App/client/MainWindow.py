@@ -1,15 +1,24 @@
-import sys
-
-from Client import *
-import GlobalItems
+# THIRD PARTY
+import sys, os
+import threading
+import time
 from pathlib import Path
 
+# MESSENGER APP MODULES
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from Shared.SharedTools import (CMD, extract_cmd)
+from Client import get_server_handle
+import GlobalItems
+
+# PYQT6
 from PyQt6.QtWidgets import (QApplication, QMainWindow, 
-                             QPushButton, QLabel)
-from PyQt6.QtGui import *
-from PyQt6.QtCore import *
+                             QPushButton, QLabel, QWidget, QHBoxLayout)
+from PyQt6.QtCore import (QThread, pyqtSignal, Qt)
 
 from GUI.UI_Login_Register import Ui_MainWindow
+
+# END OF IMPORTS
+
 
 # -=--=-=-=--= TOOLS 
 def handle_server_feedback(cmd_searching_for, verbose=False) -> tuple:
@@ -143,6 +152,11 @@ class MainWindow:
     def submit_enter_message(self):
         message = self.ui.enter_message_entry.text()
         send_to = self.current_chat_opened_with[0]
+        # This would need properly fixing
+        message = message.replace("'", "")
+
+        ###
+        print(f"sending {message}")
         GlobalItems.request_out_buffer.append(f"#IC[{CMD.SENDMESSAGE}]('{message}', '{send_to}')")
         
 
@@ -208,15 +222,37 @@ class MainWindow:
             for contact_chat in reversed(range(self.ui.verticalLayout.count())):
                 self.ui.verticalLayout.itemAt(contact_chat).widget().setParent(None)
 
+
+
             for contact_details in contacts:
                 contact_id, contact_name = contact_details
-                chat_ = QPushButton(contact_name, parent=self.ui.contacts_scrollAreaWidgetContents)
-                chat_.clicked.connect(lambda _, x=(contact_id, contact_name): self.select_enter_chats_btn(x))
-                call_ = QPushButton(f"Call - {contact_name}", parent=self.ui.contacts_scrollAreaWidgetContents)
-                call_.clicked.connect(lambda _, x=(contact_id, contact_name): self.select_call_person(x))
+            
+                layout = QHBoxLayout()
+                contact_ = QWidget()
 
-                self.ui.verticalLayout.addWidget(chat_)
-                self.ui.verticalLayout.addWidget(call_)
+                
+                contact_.setStyleSheet("background-color: rgb(220,220,220);")
+                contact_.setMaximumHeight(45)
+
+                call_ = QPushButton("Call")
+                call_.clicked.connect(lambda _, x=(contact_id, contact_name): self.select_call_person(x))
+                call_.setStyleSheet("background-color: #bfff00")
+                call_.setFixedWidth(50)
+                call_.setFixedHeight(23)
+
+                chat_ = QPushButton(contact_name)
+                chat_.clicked.connect(lambda _, x=(contact_id, contact_name): self.select_enter_chats_btn(x))
+                chat_.setFixedWidth(150)
+                chat_.setFixedHeight(23)
+
+                layout.addWidget(chat_)
+                layout.addWidget(call_)
+                contact_.setLayout(layout)
+
+                self.ui.verticalLayout.addWidget(contact_)
+                #self.ui.verticalLayout.addWidget(call_)
+
+
         else:
             print("You have no contacts")
     #####################################
