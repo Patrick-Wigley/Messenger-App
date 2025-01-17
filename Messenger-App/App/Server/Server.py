@@ -222,10 +222,11 @@ def handle_client(conn:socket.socket, addr:Any) -> None:
                     
 
             else:
-                print(f"Received unexpected: \n- At Connection: {addr} \n- Data: {received}")
+                if VERBOSE:
+                    print(f"Received unexpected: \n- At Connection: {addr} \n- Data: {received}")
                 if not handle_check_connection_still_active(conn, priv_key):
-                        print("Connection not sending")
-                        break
+                    print("Connection not reponding")
+                    break
                 break
 
         # Post session clean-up
@@ -268,7 +269,7 @@ if __name__ == "__main__":
     else:
         # Begin 
         IPS_FILE_LOCATION = "Shared\\details"
-
+        VERBOSE = True
 
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         file = Path(IPS_FILE_LOCATION)

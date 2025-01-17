@@ -162,11 +162,13 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
             
 
         except DecryptionError as _:
-            print(f"[Decryption was not complete]: IN {handle_recv.__name__}")
+            if verbose:
+                print(f"[Decryption was not complete]: IN {handle_recv.__name__}")
             return None
 
     except socket.error as _:
-        print(f"[ABRUPT DISCONNECTION]: IN {handle_recv.__name__}")
+        if verbose:
+            print(f"[ABRUPT DISCONNECTION]: IN {handle_recv.__name__}")
         return None
 
 
@@ -228,8 +230,9 @@ def handle_send(conn:socket.socket, addr=None, cmd:Union[str, None] = None, args
             print(f"#~#~ TRANSMITTING CMD = '{cmd}'~#~# \n Segments transmitted: {seg_count}\n Segment Len: {seg_len}\n\n Data Transmitted: {data} \n\n Data Encrypted (Actual Data Sent): {encrypted_chunks}\n\n")
         return True
     
-    except socket.error as e:
-        print(f"[ABRUPT DISCONNECTION]: IN {handle_send.__name__}\n{e}")
+    except socket.error as _:
+        if verbose:
+            print(f"[ABRUPT DISCONNECTION]: IN {handle_send.__name__}\n{e}")
         return False 
 
 def setup_chunk_to_send(data: bytes) -> bytes:
