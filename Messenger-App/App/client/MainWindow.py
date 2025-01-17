@@ -12,8 +12,9 @@ import GlobalItems
 
 # PYQT6
 from PyQt6.QtWidgets import (QApplication, QMainWindow, 
-                             QPushButton, QLabel, QWidget, QHBoxLayout)
-from PyQt6.QtCore import (QThread, pyqtSignal, Qt)
+                             QPushButton, QLabel, QWidget, QHBoxLayout, QLineEdit)
+from PyQt6.QtCore import (QThread, pyqtSignal)
+from PyQt6 import QtWidgets
 
 from GUI.UI_Login_Register import Ui_MainWindow
 
@@ -326,6 +327,10 @@ class MainWindow:
                     username, password = str(data).split(",")
                     self.ui.log_username_entry.setText(username)
                     self.ui.log_password_entry.setText(password)
+
+        self.ui.log_password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+        self.ui.reg_password_entry.setEchoMode(QLineEdit.EchoMode.Password)
+
 
         # Setup buttons
         # Modes buttons

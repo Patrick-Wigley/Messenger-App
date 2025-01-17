@@ -130,7 +130,11 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
     
     return None
         
+def handle_initial_communication():
+    """ Setup with a client """
+    pass
 
+# Turn this into a loop function
 def handle_client(conn, addr):
     print(f"NEW CONNECTION: {conn}, {addr}")
     clients_ipv4_location_details = None
@@ -234,10 +238,6 @@ def handle_client(conn, addr):
                     print(f"Received: {received}")
                     
 
-
-                if cmd == "acceptContact":
-                    pass
-
             else:
                 print(f"Received unexpected: \n- At Connection: {addr} \n- Data: {received}")
                 if not handle_check_connection_still_active(conn, priv_key):
@@ -293,7 +293,6 @@ if __name__ == "__main__":
 
         while True:
             try:
-
                 # main thread does nothing yet. just idles, to keep server running till manual closure
                 pass
             except KeyboardInterrupt as _:

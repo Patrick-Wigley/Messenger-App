@@ -37,6 +37,10 @@ class CMD:
     UPDATE_CHAT_LOG_LIVE = "UpdateChatLogLive"
     EXIT = "exit"
 
+    # KEYSHARE
+    REQUESTPUBKEY = "RequestingPubKey"
+    SENDINGPUBKEY = "SendingPubKey"
+
 
     REQUEST_OUT_CMDS = [
         CALLPERSON,
@@ -84,7 +88,6 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
 
     try:
         packet_id = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
-        print(f"packet id is: {packet_id}")
 
         seg_count = 0
         seg_count_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
@@ -132,20 +135,23 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
             if decrypt_data and verbose:
                 print(f"Decrypted following: {chunks_concatenated}")
 
+            # DEFENCE AGAINST REPLAY ATTACK
             # Determine if this same packet was sent previously
             data_with_packet_id = packet_id + chunks_concatenated
-            print(f"Packet ID and Data {data_with_packet_id}")
+            if verbose:
+                print(f"Packet ID and Data {data_with_packet_id}")
             if data_with_packet_id in packet_ids_used:
                 print("THIS IS A REPLAY ATTACK")
                 return None
-
             else:
                 # Keep track of this packet sent
                 packet_ids_used.append(data_with_packet_id)
-                print(packet_ids_used)
+                #print(packet_ids_used)
 
                 # EXTRACTING COMMANDS & RETURNING
                 return extract_cmd(chunks_concatenated)
+            
+
         except DecryptionError as _:
             print(f"[Decryption was not complete]: IN {handle_recv.__name__}")
             return None
@@ -288,6 +294,8 @@ def convert_from_pkcs(pub_pkcs: str):
     return convert_to_key_from_pkcs(pub_pkcs)
 
 def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False):
+    # USES ASYMMETRIC KEY CRYPTOGRAPHY
+    
     others_public_key = None
 
     sent_key_to_client = False
@@ -295,7 +303,7 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
         sent_key_to_client = True
     got_key_from_client = False
    
-    send_result = handle_send(conn, addr, cmd="RequestingPubKey", encrypt_data=False)
+    send_result = handle_send(conn, addr, cmd=CMD.REQUESTPUBKEY, encrypt_data=False)
     if send_result:
         while True:
             if not sent_key_to_client or not got_key_from_client:
@@ -303,17 +311,17 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
             
                 if result:
                     cmd, args = result
-                    if cmd == "SendingPubKey":
+                    if cmd == CMD.SENDINGPUBKEY:
                         got_key_from_client = True
                         clients_public_key_pkcs = args[0]
                         others_public_key = convert_from_pkcs(clients_public_key_pkcs)
                         if verbose:
                             print(f"Got other participants public key - {others_public_key}")
 
-                    elif cmd == "RequestingPubKey":
+                    elif cmd == CMD.REQUESTPUBKEY:
                         sent_key_to_client = True
                         # Save key into pkcs for loading on client side
-                        send_result = handle_send(conn, addr, cmd="SendingPubKey", args=convert_to_pkcs(sessions_generated_public_key))
+                        send_result = handle_send(conn, addr, cmd=CMD.SENDINGPUBKEY, args=convert_to_pkcs(sessions_generated_public_key))
                         if verbose:
                             print(f"Sending Public key to other participant - {sessions_generated_public_key}")
                         if not send_result:
@@ -332,22 +340,7 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
 
 ################################
 
-# FRAME/PACKET SEGMENTING 
-def segment_str(msg: str) -> list:
-    """ Each segment is prefixed with CHUNK NUMBER - 
-    Notation is <Segmented ID>[Login](arg1, arg2)  - SPLITS STRING WITHOUT CONSIDERATION OF WHAT DATA IS BEING SPLIT e.g. '<1>[Logou' '<2>t](arg)' is possible
-    """
-    msg_len = len(msg.encode("utf-8"))
-    chunks_count = math.ceil(msg_len / SEGMENT_CHUNK_SIZE) 
 
-    ret = []
-    pivot = 1
-    for chunk_index in range(chunks_count):
-        data_chunk = msg[SEGMENT_CHUNK_SIZE*(pivot-1) : SEGMENT_CHUNK_SIZE*pivot]
-        ret.append(f"<{chunk_index}, {len(data_chunk)}>{data_chunk}")
-        pivot += 1
-
-    return ret
 
 def get_segment(seg_id, data:str, segment_len:int):
     data_chunk = data[segment_len*(seg_id) : segment_len*(seg_id+1)]
@@ -370,7 +363,6 @@ def send_email(receiver_email, data, subject):
     msg = MIMEText(data, "plain")
     msg["Subject"] = subject
 
-
     host_name = "smtp.gmail.com"
     with smtplib.SMTP_SSL(host_name) as server:
         server.login(sender_email, password)
@@ -381,7 +373,22 @@ def send_email(receiver_email, data, subject):
 
 # #####~~~~#####~~~~#####~~~~##### OTHER - Not used #####~~~~#####~~~~#####~~~~#####
 
+# FRAME/PACKET SEGMENTING 
+def segment_str(msg: str) -> list:
+    """ Each segment is prefixed with CHUNK NUMBER - 
+    Notation is <Segmented ID>[Login](arg1, arg2)  - SPLITS STRING WITHOUT CONSIDERATION OF WHAT DATA IS BEING SPLIT e.g. '<1>[Logou' '<2>t](arg)' is possible
+    """
+    msg_len = len(msg.encode("utf-8"))
+    chunks_count = math.ceil(msg_len / SEGMENT_CHUNK_SIZE) 
 
+    ret = []
+    pivot = 1
+    for chunk_index in range(chunks_count):
+        data_chunk = msg[SEGMENT_CHUNK_SIZE*(pivot-1) : SEGMENT_CHUNK_SIZE*pivot]
+        ret.append(f"<{chunk_index}, {len(data_chunk)}>{data_chunk}")
+        pivot += 1
+
+    return ret
 
 
 def pairing_function(x, y):
