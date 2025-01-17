@@ -1,6 +1,6 @@
 from typing import Union, Any
 import socket
-import sys
+import random
 import math
 import smtplib
 from email.mime.text import MIMEText
@@ -81,10 +81,10 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
     # send the appropriate (segment count packet) before hand (without all this, the packet sent as a 'Replay Attack'
     # will be rendered in-usable here)
 
- 
+
     try:
-        packet_id = 
-        conns_and_ids_used
+        packet_id = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+        print(f"packet id is: {packet_id}")
 
         seg_count = 0
         seg_count_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
@@ -132,9 +132,20 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
             if decrypt_data and verbose:
                 print(f"Decrypted following: {chunks_concatenated}")
 
+            # Determine if this same packet was sent previously
+            data_with_packet_id = packet_id + chunks_concatenated
+            print(f"Packet ID and Data {data_with_packet_id}")
+            if data_with_packet_id in packet_ids_used:
+                print("THIS IS A REPLAY ATTACK")
+                return None
 
-            # EXTRACTING COMMANDS & RETURNING
-            return extract_cmd(chunks_concatenated)
+            else:
+                # Keep track of this packet sent
+                packet_ids_used.append(data_with_packet_id)
+                print(packet_ids_used)
+
+                # EXTRACTING COMMANDS & RETURNING
+                return extract_cmd(chunks_concatenated)
         except DecryptionError as _:
             print(f"[Decryption was not complete]: IN {handle_recv.__name__}")
             return None
@@ -162,7 +173,7 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
             data = request_out
         
         # Defend against replay attacks
-        
+        conn.send(setup_chunk_to_send(str(random.randint(-100000000, 1000000000)).encode("utf-8")))
 
 
         data_len = len(data)
