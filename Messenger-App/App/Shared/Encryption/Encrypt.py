@@ -1,28 +1,28 @@
 import rsa
 import rsa.key
+
+
 from Shared.Encryption.KeyGen import (produce_private_key,
                      produce_public_key,
                        get_process_pub)
-import sys
 
 
-# Utilised by client
 
-def encrypt(data: bytes, pub_key: rsa.PublicKey):
+def encrypt(data: bytes, pub_key: rsa.PublicKey) -> bytes:
     if isinstance(data, bytes):
         encrypted_data = rsa.encrypt(data, pub_key)
     else:
         raise TypeError # data EXPECTS TYPE bytes
     return encrypted_data
 
-def decrypt(data, priv_key) -> bytes: 
+def decrypt(data: bytes, priv_key: rsa.PrivateKey) -> bytes: 
     decrypted_data = rsa.decrypt(data, priv_key)
     return decrypted_data
 
-def get_pub_priv_key():
+def get_pub_priv_key() -> None:
     return rsa.newkeys(2048)
 
-def convert_to_key_from_pkcs(pub_pkcs: str):
+def convert_to_key_from_pkcs(pub_pkcs: str) -> rsa.PublicKey:
     try:
         pub = rsa.key.PublicKey.load_pkcs1(pub_pkcs, format="DER")
     except rsa.VerificationError as e:
@@ -31,7 +31,12 @@ def convert_to_key_from_pkcs(pub_pkcs: str):
     return pub
 
 
+
+
+
 if __name__ == "__main__":
+    # NOTE OLD METHOD:
+
     # Generate keys
     # private = produce_private_key()
     # public = produce_public_key(private)

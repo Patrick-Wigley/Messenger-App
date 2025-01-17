@@ -1,12 +1,17 @@
+# Used for typing
 from typing import Union, Any
+from rsa.key import PublicKey, PrivateKey
+
+# Third-Party
 import socket
 import random
 import math
 import smtplib
 from email.mime.text import MIMEText
-
-from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
 from rsa import DecryptionError
+
+# Messenger App Module(s)
+from Shared.Encryption.Encrypt import (encrypt, decrypt, get_pub_priv_key, convert_to_key_from_pkcs)
 
 # CONSTANTS
 DEBUG = False
@@ -63,14 +68,14 @@ class CMD:
     STILL_CONNECTED = "StillConnected"
 
 
-
-
 ################################
 
-# Would have to be persistent
-packet_ids_used = []
 
 # DATA TRANSMISSION 
+
+# Would have to be persistent - would also need to be a hash-map
+packet_ids_used = []
+
 def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decrypt_data=True) -> Union[tuple, None]:
     """ 
     Params:
@@ -87,24 +92,26 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
 
 
     try:
-        packet_id = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+        # DEFENCE AGAINST REPLAY ATTACK - RECEIVE UNIQUE NUMBER FOR PACKET
+        packet_id = conn.recv(RECEIVE_AMOUNT).decode(ENCODE_FORMAT)
 
+        # RECEIVE SEGMENT COUNT ABOUT TO RECEIVE
         seg_count = 0
-        seg_count_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+        seg_count_data = conn.recv(RECEIVE_AMOUNT).decode(ENCODE_FORMAT)
         if CMD.SEGCOUNT in seg_count_data:
             #print(f"GOT SEG COUNT DATA: {seg_count_data}")
             _, args = extract_cmd(seg_count_data)
             seg_count = args[0]
             if verbose:
                 print(f"SEG COUNT EXPECTING IS: {seg_count}")
-
         else:
             print("SOMETHING WENT WRONG!!")
 
+        # RECEIVE SEGMENT(S) OF PACKET, DECRYPT EACH SEGEMENT 
         try:
             chunks_concatenated = ""
             for _ in range(seg_count):
-                seg_len_data = conn.recv(RECEIVE_AMOUNT).decode("utf-8")
+                seg_len_data = conn.recv(RECEIVE_AMOUNT).decode(ENCODE_FORMAT)
                 if CMD.SEGLEN in seg_len_data:
                     _, args = extract_cmd(seg_len_data)
                     receive_amount = args[0]
@@ -161,7 +168,7 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
         return None
 
 
-def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=False, pub_key="", encrypt_data=True) -> bool:
+def handle_send(conn:socket.socket, addr=None, cmd:Union[str, None] = None, args:Union[Any, None] = None, request_out:str = "", verbose=False, pub_key:PublicKey = "", encrypt_data:bool = True) -> bool:
     """ 
     Takes command to send & optionally any arguments
     Params:
@@ -179,15 +186,15 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
             data = request_out
         
         # Defend against replay attacks
-        conn.send(setup_chunk_to_send(str(random.randint(-100000000, 1000000000)).encode("utf-8")))
+        conn.send(setup_chunk_to_send(str(random.randint(-100000000, 1000000000)).encode(ENCODE_FORMAT)))
 
 
+        # PRE-SHARE DATA SEGMENT COUNT
         data_len = len(data)
         seg_len = 50
         seg_count = math.ceil(data_len / seg_len) 
 
-        # PRE-SHARE DATA SEGMENT COUNT
-        conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGCOUNT, args=seg_count).encode("utf-8")))
+        conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGCOUNT, args=seg_count).encode(ENCODE_FORMAT)))
 
         # DEBUGING
         if verbose:
@@ -195,13 +202,10 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
 
         encrypted_chunks = []
         for segment_id in range(seg_count):
-            
             segment = get_segment(segment_id, data, segment_len=seg_len)
-            #print(f"segment: {segment}")
 
             # ENCODING
             data_encoded = segment.encode(ENCODE_FORMAT)
-
 
             # ENCRYPTING
             if encrypt_data and pub_key:
@@ -214,7 +218,7 @@ def handle_send(conn, addr=None, cmd=None, args=None, request_out="", verbose=Fa
                 data_ready_to_send = data_encoded
 
             # SENDING
-            conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGLEN, args=len(data_ready_to_send)).encode("utf-8")))
+            conn.send(setup_chunk_to_send(format_ic_cmd(cmd=CMD.SEGLEN, args=len(data_ready_to_send)).encode(ENCODE_FORMAT)))
             conn.send(data_ready_to_send)
         
         if verbose:
@@ -231,7 +235,6 @@ def setup_chunk_to_send(data: bytes) -> bytes:
 
 def format_ic_cmd(cmd: str, args: Any = "") -> str:
     return f"#IC[{cmd}] ({args})"
-
 
 def extract_cmd(data: str) -> tuple:
     """
@@ -265,36 +268,22 @@ def extract_cmd(data: str) -> tuple:
 
     return (cmd, args)
 
-
-def extract_segment_data(chunk: str) -> tuple:
-    chunk_info = chunk[chunk.find("<")+1 : chunk.find(">")]
-    chunk_id, chunk_size = chunk_info.replace(" ", "").split(",")
-    
-    chunk_data = chunk[chunk.find(">")+1 :]
-    chunks_actual_data = chunk_data[: int(chunk_size)]        # Removes extra empty data - which is used to make the chunk a fixed size 
-
-    #print(f"chunk_id: {chunk_id}, chunk_size: {chunk_size}")
-    #print(f"chunk_info: {chunks_actual_data}")
-
-    return (chunk_id, chunk_size, chunks_actual_data)
-
-
 ################################
 
 
 
 # KEY & ENCRYPTION HANDLING 
-def gen_keys():
+def gen_keys() -> Union[PublicKey, PrivateKey]:
     return get_pub_priv_key()
 
-def convert_to_pkcs(pub):
+def convert_to_pkcs(pub: PublicKey) -> str:
     pub_pkcs = pub.save_pkcs1("DER")
     return pub_pkcs
-def convert_from_pkcs(pub_pkcs: str):
+def convert_from_pkcs(pub_pkcs: str) -> PublicKey:
     return convert_to_key_from_pkcs(pub_pkcs)
 
-def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directional_share=True, verbose=False):
-    # USES ASYMMETRIC KEY CRYPTOGRAPHY
+def handle_pubkey_share(conn:socket.socket, addr, sessions_generated_public_key:PublicKey, bi_directional_share:bool = True, verbose=False) -> Union[PublicKey, None]:
+    """ USES ASYMMETRIC KEY CRYPTOGRAPHY """
     
     others_public_key = None
 
@@ -341,22 +330,32 @@ def handle_pubkey_share(conn, addr, sessions_generated_public_key, bi_directiona
 ################################
 
 
-
-def get_segment(seg_id, data:str, segment_len:int):
+# SEGMENTIATION
+def get_segment(seg_id:int, data:str, segment_len:int) -> str:
     data_chunk = data[segment_len*(seg_id) : segment_len*(seg_id+1)]
-    #print(f"Data: {data}; \n\nSegment: {data_chunk}")
     return f"<{seg_id}, {len(data_chunk)}>{data_chunk}"
+
+
+def extract_segment_data(chunk: str) -> tuple:
+    chunk_info = chunk[chunk.find("<")+1 : chunk.find(">")]
+    chunk_id, chunk_size = chunk_info.replace(" ", "").split(",")
+    
+    chunk_data = chunk[chunk.find(">")+1 :]
+    # Removes extra empty data - which is used to make the chunk a fixed size
+    chunks_actual_data = chunk_data[: int(chunk_size)]         
+
+    #NOTE - Used for detailed debugging of chunk-transmission
+    #print(f"chunk_id: {chunk_id}, chunk_size: {chunk_size}")
+    #print(f"chunk_info: {chunks_actual_data}")
+
+    return (chunk_id, chunk_size, chunks_actual_data)
 
 
 ################################
 
-# ERROR CHECKING
-def check_md5():
-    pass
 
 # EMAILING
-
-def send_email(receiver_email, data, subject):
+def send_email(receiver_email:str, data:str, subject:str) -> None:
     print(f"SENDING EMAIL TO: {receiver_email} \nMESSAGE BEING SENT: {data}")
     sender_email = "uodmessengerapp@gmail.com"
     password = "yunj jscm rgdu xuad" # Settings Password: 'Derby100715281' - App Password: 'yunj jscm rgdu xuad'
@@ -378,7 +377,7 @@ def segment_str(msg: str) -> list:
     """ Each segment is prefixed with CHUNK NUMBER - 
     Notation is <Segmented ID>[Login](arg1, arg2)  - SPLITS STRING WITHOUT CONSIDERATION OF WHAT DATA IS BEING SPLIT e.g. '<1>[Logou' '<2>t](arg)' is possible
     """
-    msg_len = len(msg.encode("utf-8"))
+    msg_len = len(msg.encode(ENCODE_FORMAT))
     chunks_count = math.ceil(msg_len / SEGMENT_CHUNK_SIZE) 
 
     ret = []
@@ -391,7 +390,7 @@ def segment_str(msg: str) -> list:
     return ret
 
 
-def pairing_function(x, y):
+def pairing_function(x:int, y:int) -> int:
     """
     Create a highly unique value using the two ids of 
     x = Client making call 
@@ -402,6 +401,10 @@ def pairing_function(x, y):
     ret =  y | (x << 32) if x > y else x | (y << 32)
     return ret
 
+
+# ERROR CHECKING
+def check_md5():
+    pass
 
 
 if __name__ == "__main__":

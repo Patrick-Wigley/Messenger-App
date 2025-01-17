@@ -4,16 +4,19 @@
 # Needs to prevent replay attacks
 #  
 
+# Used for typing
+from typing import Union, Any
+from rsa.key import PublicKey
+
+# THIRD PARTY
 import socket
 import threading
 import smtplib
 import sys
 import os
-from typing import Union
 
-
-from dbModelManager import AccountManager, AccountManagerErrors, Account, ContactsManger, MessageManager
-
+# MESSENGER APP MODULES
+from dbModelManager import AccountManager, Account, ContactsManger, MessageManager
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (CMD,
                             extract_cmd, 
@@ -24,30 +27,13 @@ from Shared.SharedTools import (CMD,
                             gen_keys, handle_pubkey_share)
 
 
-server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-with open("Server\\details", "r") as file:
-    data = file.read()
-    if data:
-        IP = data
-    else:
-        input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
-        
-PORT = 5055
-ADDR = (IP, PORT)
-server.bind(ADDR)
 
 
-# NOTE: THIS NEEDS TO BE USED SYNCHRONOUSLY
-
-# Command notation is: #IC[command] (arguments) 
-
-
-# (ClientID, IPV4)
-current_ipv4s_in_use = []
-current_conns_in_use = []
 # -------- Functions --------
 
-def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
+
+# HANDLE CLIENTS AUTHENTICATION - LOGIN & REGISTER
+def handle_client_login(conn:socket.socket, addr:Any, pub_key:PublicKey, cmd:str, args:Union[Any, None]) -> Union[Account, None]:
     clients_account = AccountManager.handle_login(username=args[0], password=args[1])          
     if clients_account:
         if not clients_account.locked:
@@ -56,7 +42,7 @@ def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, 
                     send_email(receiver_email=clients_account.email, 
                             data=f"Hi {args[0]}, you have logged in at a different location, check that this is you?", 
                             subject="New Login Location")
-            handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
+            handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_key)
             return clients_account
         else:
             if False: #NOTE ADD BACK: 
@@ -65,7 +51,7 @@ def handle_client_login(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, 
                             subject="Are you trying to access your account?")
     return None
 
-def handle_client_register(conn, addr, pub_priv_keys, cmd, args) -> Union[Account, None]:
+def handle_client_register(conn:socket.socket, addr:Any, pub_key:PublicKey, cmd:str, args:Union[Any, None]) -> Union[Account, None]:
     print(args)
     clients_account = AccountManager.handle_register(email=args[2], username=args[0], password=args[1], ipv4=addr[0], premium_member=args[3])
     if clients_account:
@@ -74,7 +60,7 @@ def handle_client_register(conn, addr, pub_priv_keys, cmd, args) -> Union[Accoun
                     data=f"Welcome {args[1]} to the UOD Messenger app! Hosted at {IP}:{PORT} We have saved your account to this email. This social application is still in production!",
                     subject="The UOD Messenger App")
         
-        handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_priv_keys[0])
+        handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_key)
         return clients_account
     return None
 
@@ -87,11 +73,8 @@ def handle_client_forgot_password(conn, addr, pub_priv_keys, cmd, args) -> None:
             
         else:
             handle_send(conn, addr, cmd=cmd, args=False, pub_key=pub_priv_keys[0])
-    ################
 
-
-
-def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
+def handle_client_auth(conn:socket.socket, addr, pub_priv_keys:tuple) -> Union[Account, None]:
     """
     Params:
         - conn [Socket] 
@@ -110,11 +93,11 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
             cmd, args = result
             print(result)
             if cmd == CMD.LOGIN:
-                result = handle_client_login(conn, addr, pub_priv_keys, cmd, args)
+                result = handle_client_login(conn, addr, pub_priv_keys[0], cmd, args)
                 if result:
                     return result
             elif cmd == CMD.REGISTER:
-                result = handle_client_register(conn, addr, pub_priv_keys, cmd, args)
+                result = handle_client_register(conn, addr, pub_priv_keys[0], cmd, args)
                 if result:
                     return result
             else:
@@ -130,12 +113,14 @@ def handle_client_auth(conn, addr, pub_priv_keys) -> Union[Account, None]:
     
     return None
         
-def handle_initial_communication():
+def handle_initial_communication() -> None:
     """ Setup with a client """
     pass
 
+
+
 # Turn this into a loop function
-def handle_client(conn, addr):
+def handle_client(conn:socket.socket, addr:Any) -> None:
     print(f"NEW CONNECTION: {conn}, {addr}")
     clients_ipv4_location_details = None
     clients_conn_pubkey_details = None
@@ -143,10 +128,10 @@ def handle_client(conn, addr):
     # Sessions Key Generation 
     # Generate Server Private & Public keys for this client session
     pub_key, priv_key = gen_keys() 
-    #
+    # SHARE PUBLIC key with CLIENT
     clients_pub_key = handle_pubkey_share(conn, addr, pub_key, verbose=True)
-    
-    # Handle login here
+
+    # Session Login 
     clients_account = handle_client_auth(conn, addr, (clients_pub_key, priv_key))
 
     if clients_account:
@@ -281,25 +266,41 @@ DEBUG = False
 if __name__ == "__main__":
     
     if DEBUG:
-        extract_cmd("IC{login} (patrick,pass)")
+        print("Debugging Mode is active")
     else:
-        
         # Begin 
-        # main thread will remain free.
+        
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        with open("Server\\details", "r") as file:
+            data = file.read()
+            if data:
+                IP = data
+            else:
+                input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
+                
+        PORT = 5055
+        ADDR = (IP, PORT)
+        server.bind(ADDR)
+
+
+        # (ClientID, IPV4)
+        current_ipv4s_in_use = []
+        current_conns_in_use = []
+
         
         # Thread created for handling connection requests and setting a thread for each connection 
         handle_connections_thread = threading.Thread(target=handle_incoming_connections)
         handle_connections_thread.start()
 
+        # main thread will remain free.
         while True:
             try:
                 # main thread does nothing yet. just idles, to keep server running till manual closure
                 pass
             except KeyboardInterrupt as _:
+                print("Closing Server")
                 sys.exit()
 
 else:
-    print("This doesn't link to any external usage")
+    print(f"{__name__} has no external usage")
 
-print(IP)
-# conn, addr = sock.

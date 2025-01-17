@@ -5,7 +5,7 @@ import sys
 import os
 from pathlib import Path
 import time
-
+from typing import Union
 
 
 # MESSENGER APP MODULES
@@ -28,8 +28,8 @@ from Shared.SharedTools import (CMD,
 # END OF IMPORTS
 
 
-
-def handle_register(inputted_account_details):
+# HANDLE AUTHENTICATION - LOGIN & REGISTER
+def handle_register(inputted_account_details: str) -> None:
     handle_send(client, SERVER_LOCATION, request_out=inputted_account_details, pub_key=servers_session_pub_key)
         
     received = handle_recv(client, SERVER_LOCATION, priv_key=private_key)
@@ -45,7 +45,7 @@ def handle_register(inputted_account_details):
             else:
                 GlobalItems.interpreted_server_feedback_buffer.append("#IC[register]('Username_or_Email_is_taken', False)")
 
-def handle_login(autoconnect, inputted_account_details=None):
+def handle_login(autoconnect: bool, inputted_account_details: Union[str, None] = None) -> None:
     if autoconnect:
         cache_file = Path(GlobalItems.CREDENTIAL_CACHE_FILE_LOCATION)
         if cache_file.exists():
@@ -82,7 +82,6 @@ def handle_login(autoconnect, inputted_account_details=None):
         else:
             print(f"RECIEVED SOMETHING UNEXPECTED - {received}")
 
-
 @loop_function
 def handle_authenticate(autoconnect: list) -> bool:
     if autoconnect[0]:
@@ -99,11 +98,11 @@ def handle_authenticate(autoconnect: list) -> bool:
                 print(f"RECEIVED SOMETHING UNEXCPTED WHILE HANDLING AUTHENTICATION - {inputted_account_details}")
     
     return not GlobalItems.logged_in
-        
-     
 
 
-def handle_connect():
+
+# CONNECTION HANDLING - CONNECT, RECONNECT, DISCONNECT
+def handle_connect() -> None:
     while True:
         try:
             client.connect(SERVER_LOCATION)
@@ -120,13 +119,15 @@ def handle_auto_reconnect():
     client.close()
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     handle_initial_communications(autoconnect=True)
-
 def handle_exit():
     print(f"Exiting thread: {threading.get_ident()}!")
     # Need to tell server
     handle_send(client, SERVER_LOCATION, CMD.EXIT)
     sys.exit()
 
+
+
+# KEY HANDLING
 def handle_get_keys():
     global servers_session_pub_key, private_key
 
@@ -136,7 +137,8 @@ def handle_get_keys():
     servers_session_pub_key = handle_pubkey_share(client, SERVER_LOCATION, pub_key, verbose=True)
 
     
-def handle_initial_communications(autoconnect=False):
+# -=-= MAIN FUNCTIONS
+def handle_initial_communications(autoconnect=False) -> None:
     """ Handles Connection, Key-Share, Authentiction """
     GlobalItems.logged_in = False
 
@@ -148,7 +150,7 @@ def handle_initial_communications(autoconnect=False):
     handle_authenticate(autoconnect=autoconnect)
 
 
-def server_handle():
+def server_handle() -> None:
     """ Main function for network side of client """ 
     
     handle_initial_communications()
@@ -228,8 +230,7 @@ def handle_requests_in() -> bool:
 
 # Begin 
 if __name__ == "__main__":
-    # Probably run some tests? 
-    print("This doesn't run directly yet")
+    print(f"{__name__} has no internal usage")
 
 else:
     # -- Runs through MainWindow.py
@@ -246,7 +247,7 @@ else:
                 IP = ip
                 SERVER_IP = server_ip
     else:
-        IP = input("Devices assigned IP on subnet ->: ")        #socket.gethostbyname(socket.gethostname())
+        IP = input("Devices assigned IP on subnet ->: ")        # socket.gethostbyname(socket.gethostname())
         SERVER_IP = input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
 
 

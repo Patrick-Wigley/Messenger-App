@@ -1,4 +1,7 @@
-# Diffie-Hellman
+# NOTE THIS IS OLD & NOT USED:
+# This previous method was synchronous, pre-shared key 
+# Has now been improved to an asynchronous key-share, where the private key is never exposed
+
 
 import random
 
