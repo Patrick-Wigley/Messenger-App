@@ -36,29 +36,25 @@ def handle_client_login(conn:socket.socket, addr:Any, pub_key:PublicKey, cmd:str
     clients_account = AccountManager.handle_login(username=args[0], password=args[1])          
     if clients_account:
         if not clients_account.locked:
-            if False: #NOTE ADD BACK: 
-                if AccountManager.is_new_login_location(ipv4=addr[0], username=args[0]):    
-                    send_email(receiver_email=clients_account.email, 
-                            data=f"Hi {args[0]}, you have logged in at a different location, check that this is you?", 
-                            subject="New Login Location")
+            if AccountManager.is_new_login_location(ipv4=addr[0], username=args[0]):    
+                send_email(receiver_email=clients_account.email, 
+                        data=f"Hi {args[0]}, you have logged in at a different location, check that this is you?", 
+                        subject="New Login Location")
             handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_key)
             return clients_account
         else:
-            if False: #NOTE ADD BACK: 
-                send_email(receiver_email=clients_account.email, 
-                            data=f"Hi {args[0]}, we have locked your account - There has been multiple failed login attempts into your account.", 
-                            subject="Are you trying to access your account?")
+            send_email(receiver_email=clients_account.email, 
+                        data=f"Hi {args[0]}, we have locked your account - There has been multiple failed login attempts into your account.", 
+                        subject="Are you trying to access your account?")
     return None
 
 def handle_client_register(conn:socket.socket, addr:Any, pub_key:PublicKey, cmd:str, args:Union[Any, None]) -> Union[Account, None]:
     print(args)
     clients_account = AccountManager.handle_register(email=args[2], username=args[0], password=args[1], ipv4=addr[0], premium_member=args[3])
     if clients_account:
-        if False: #NOTE ADD BACK
-            send_email(receiver_email=clients_account.email, 
-                    data=f"Welcome {args[1]} to the UOD Messenger app! Hosted at {IP}:{PORT} We have saved your account to this email. This social application is still in production!",
-                    subject="The UOD Messenger App")
-        
+        send_email(receiver_email=clients_account.email, 
+                data=f"Welcome {args[1]} to the UOD Messenger app! Hosted at {IP}:{PORT} We have saved your account to this email. This social application is still in production!",
+                subject="The UOD Messenger App")
         handle_send(conn, addr, cmd=cmd, args=True, pub_key=pub_key)
         return clients_account
     return None
