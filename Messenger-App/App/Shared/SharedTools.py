@@ -153,8 +153,7 @@ def handle_recv(conn, addr, recv_amount=1024, priv_key="", verbose=False, decryp
             else:
                 # Keep track of this packet sent
                 packet_ids_used.append(data_with_packet_id)
-                #print(packet_ids_used)
-
+                
                 # EXTRACTING COMMANDS & RETURNING
                 return extract_cmd(chunks_concatenated)
             
@@ -187,6 +186,8 @@ def handle_send(conn:socket.socket, addr=None, cmd:Union[str, None] = None, args
         
         # Defend against replay attacks
         conn.send(setup_chunk_to_send(str(random.randint(-100000000, 1000000000)).encode(ENCODE_FORMAT)))
+        #TODO - Use this print below to demonstrate replay attacks
+        conn.send(setup_chunk_to_send(str(2903).encode(ENCODE_FORMAT)))
 
 
         # PRE-SHARE DATA SEGMENT COUNT

@@ -19,7 +19,6 @@ import os
 from dbModelManager import AccountManager, Account, ContactsManger, MessageManager
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (CMD,
-                            extract_cmd, 
                             send_email,
                             pairing_function,
                             handle_recv,
@@ -83,8 +82,7 @@ def handle_client_auth(conn:socket.socket, addr, pub_priv_keys:tuple) -> Union[A
         - populated clients_account instance [Account] - On SUCCESSFUL Authentication
         - None [None] - On FAILED Authentication
     Does:
-        - Utilises AccountManager class to handle login authentication, clients_account locking and the rest
-        - Only accepts 'IC[login] (username, password)' here.
+        - Utilises AccountManager class to handle login authentication, clients_account locking etc
     """
     while True:
         print(f"Waiting for login details at: {addr}")
@@ -113,11 +111,13 @@ def handle_client_auth(conn:socket.socket, addr, pub_priv_keys:tuple) -> Union[A
     
     return None
         
+
 def handle_initial_communication() -> None:
     """ Setup with a client """
-    pass
+    
 
 
+# -=-= MAIN FUNCTIONS
 
 # Turn this into a loop function
 def handle_client(conn:socket.socket, addr:Any) -> None:
@@ -181,8 +181,9 @@ def handle_client(conn:socket.socket, addr:Any) -> None:
                 elif cmd == CMD.SEARCHCONTACT:
                     result = ContactsManger.handle_search_contact(username=args[0])
                     if result:
+                        # SEND ALL ACCOUNTS MATCHES (ID1, USERNAME1, ID2, USERNAME2, ...)
                         handle_send(conn=conn, addr=addr, cmd=cmd, args=[
-                            (clients_account[0], clients_account[1]) for clients_account in result # SEND ALL ACCOUNTS (ID1, USERNAME1, ID2, USERNAME2, ...)
+                            (clients_account[0], clients_account[1]) for clients_account in result 
                             ], 
                             pub_key=clients_pub_key)
                     else:
@@ -276,7 +277,7 @@ if __name__ == "__main__":
             if data:
                 IP = data
             else:
-                input("Servers assigned IP on subnet ->: ") # socket.gethostbyname(socket.gethostname())
+                input("Servers assigned IP on subnet ->: ") 
                 
         PORT = 5055
         ADDR = (IP, PORT)

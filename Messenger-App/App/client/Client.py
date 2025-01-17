@@ -20,7 +20,7 @@ from Ap_Tools import (
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Shared.SharedTools import (CMD,
-                           extract_cmd, format_ic_cmd,
+                           extract_cmd,
                            handle_send,
                            handle_recv,
                            handle_pubkey_share,
@@ -112,14 +112,14 @@ def handle_connect() -> None:
         except socket.error as e:
             print(f"Failed to connect to server - it may be down - {e}")
             time.sleep(5)
-def handle_auto_reconnect():
+def handle_auto_reconnect() -> None:
     global client
     print("ATTEMPTING TO RECONNECT")
     # Reinstatiate socket
     client.close()
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     handle_initial_communications(autoconnect=True)
-def handle_exit():
+def handle_exit() -> None:
     print(f"Exiting thread: {threading.get_ident()}!")
     # Need to tell server
     handle_send(client, SERVER_LOCATION, CMD.EXIT)
@@ -128,7 +128,7 @@ def handle_exit():
 
 
 # KEY HANDLING
-def handle_get_keys():
+def handle_get_keys() -> None:
     global servers_session_pub_key, private_key
 
     # KEY GEN & SHARE
@@ -181,10 +181,12 @@ def handle_requests_out() -> bool:
     if request_out and GlobalItems.logged_in:
             if CMD.EXIT in request_out:
                     handle_exit()
-                    return False # Do not Loop again
+                    # Do not Loop again
+                    return False 
             else:
                 handle_send(conn=client, request_out=request_out, pub_key=servers_session_pub_key)
-    return True # Loop again
+    # Loop again
+    return True 
 
 @loop_function
 def handle_requests_in() -> bool:
@@ -206,7 +208,8 @@ def handle_requests_in() -> bool:
             HandleIncommingCommands.handle_save_contact(args)
 
         elif cmd == CMD.GETSAVECONTACTCHATS:
-            HandleIncommingCommands.handle_get_chats(args) # MAKE BUTTON TO GET THIS REQUEST GOING
+            # MAKE BUTTON TO GET THIS REQUEST GOING
+            HandleIncommingCommands.handle_get_chats(args) 
 
         elif    cmd == CMD.GETMESSAGEHISTORY or\
                 cmd == CMD.SENDMESSAGE or\
@@ -222,9 +225,10 @@ def handle_requests_in() -> bool:
             print(f"Received something unexpcted from server: {received}")
     else:
         # Server has turned off - Begin auto-reconnecting 
-        handle_auto_reconnect() # Will return once succesfully reconnected & logged in
-    
-    return True # Loop again
+        # Will return once succesfully reconnected & logged in
+        handle_auto_reconnect() 
+    # Loop again
+    return True 
 
 
 
